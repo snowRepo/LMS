@@ -1,0 +1,62 @@
+# Environment files (Contains sensitive information)
+.env
+.env.local
+.env.production
+.env.staging
+
+# Logs
+logs/
+*.log
+
+# Uploads
+uploads/
+upload/
+
+# Composer
+vendor/
+composer.lock
+
+# IDE and Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+temp/
+tmp/
+
+# Database backups
+*.sql
+*.db
+*.sqlite
+
+# Cache files
+cache/
+*.cache
+
+# Configuration backups
+config/*.bak
+config/*.backup
+
+# PHPMailer logs
+phpmailer.log
+
+# Session files
+sessions/
+
+# Error logs
+error.log
+php_errors.log
