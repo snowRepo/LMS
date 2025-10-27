@@ -80,29 +80,6 @@ try {
     error_log("Error fetching borrowing history: " . $e->getMessage());
 }
 
-// Fetch unpaid fines for this member
-$unpaidFines = [];
-$totalUnpaidFines = 0;
-try {
-    $stmt = $db->prepare("
-        SELECT f.*, b.transaction_id, bk.title as book_title
-        FROM fines f
-        LEFT JOIN borrowings b ON f.borrowing_id = b.id
-        LEFT JOIN books bk ON b.book_id = bk.id
-        WHERE f.member_id = ? AND f.status = 'pending'
-        ORDER BY f.issued_date DESC
-    ");
-    $stmt->execute([$_SESSION['user_id']]);
-    $unpaidFines = $stmt->fetchAll();
-    
-    // Calculate total unpaid fines
-    foreach ($unpaidFines as $fine) {
-        $totalUnpaidFines += $fine['amount'];
-    }
-} catch (Exception $e) {
-    error_log("Error fetching unpaid fines: " . $e->getMessage());
-}
-
 $pageTitle = 'My Borrowings';
 ?>
 <!DOCTYPE html>
@@ -190,8 +167,8 @@ $pageTitle = 'My Borrowings';
             background: linear-gradient(135deg, #9b59b6 0%, #8e44ad 100%);
         }
         
-        .card-icon.fines {
-            background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+        .card-icon.due-soon {
+            background: linear-gradient(135deg, #f39c12 0%, #d35400 100%);
         }
         
         .card-title {
@@ -280,7 +257,7 @@ $pageTitle = 'My Borrowings';
         .table th,
         .table td {
             padding: 1rem;
-            text-align: left;
+            text-align: center;
             border-bottom: 1px solid #e9ecef;
         }
         
@@ -304,6 +281,7 @@ $pageTitle = 'My Borrowings';
             border-radius: 20px;
             font-size: 0.8rem;
             font-weight: 500;
+            display: inline-block;
         }
         
         .status-overdue {
@@ -338,13 +316,26 @@ $pageTitle = 'My Borrowings';
             color: #ced4da;
         }
         
-        .fine-amount {
-            font-weight: 600;
-            color: #e74c3c;
+        .action-btn {
+            padding: 0.5rem 1rem;
+            font-size: 1.2rem; /* Match books page icon size */
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            margin: 0 0.25rem;
+            border: none;
+            cursor: pointer;
+            background: #3498DB;
+            color: white;
         }
         
-        .fine-paid {
-            color: #2ecc71;
+        .action-btn:hover {
+            background: #2980B9;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.1);
         }
         
         @media (max-width: 768px) {
@@ -370,7 +361,7 @@ $pageTitle = 'My Borrowings';
     <div class="container">
         <div class="page-header">
             <h1><i class="fas fa-exchange-alt"></i> My Borrowings</h1>
-            <p>View your current borrowings, history, and outstanding fines</p>
+            <p>View your current borrowings and history</p>
         </div>
         
         <div class="dashboard-cards">
@@ -384,7 +375,7 @@ $pageTitle = 'My Borrowings';
             </div>
             
             <div class="card">
-                <div class="card-icon history" style="background: linear-gradient(135deg, #f39c12 0%, #d35400 100%);">
+                <div class="card-icon due-soon">
                     <i class="fas fa-clock"></i>
                 </div>
                 <div class="card-title">Due in 3 Days</div>
@@ -399,15 +390,6 @@ $pageTitle = 'My Borrowings';
                 <div class="card-title">Borrowing History</div>
                 <div class="card-value"><?php echo count($borrowingHistory); ?></div>
                 <div class="card-footer">Books returned</div>
-            </div>
-            
-            <div class="card">
-                <div class="card-icon fines">
-                    <i class="fas fa-money-bill-wave"></i>
-                </div>
-                <div class="card-title">Outstanding Fines</div>
-                <div class="card-value">₵<?php echo number_format($totalUnpaidFines, 2); ?></div>
-                <div class="card-footer"><?php echo count($unpaidFines); ?> unpaid fines</div>
             </div>
         </div>
         
@@ -432,11 +414,11 @@ $pageTitle = 'My Borrowings';
                             <tr>
                                 <th>Book Title</th>
                                 <th>Author</th>
-                                <th>ISBN</th>
                                 <th>Borrowed Date</th>
                                 <th>Due Date</th>
                                 <th>Days Remaining</th>
                                 <th>Issued By</th>
+                                <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -444,7 +426,6 @@ $pageTitle = 'My Borrowings';
                                 <tr>
                                     <td><?php echo htmlspecialchars($borrowing['title']); ?></td>
                                     <td><?php echo htmlspecialchars($borrowing['author_name'] ?? 'Unknown'); ?></td>
-                                    <td><?php echo htmlspecialchars($borrowing['isbn'] ?? 'N/A'); ?></td>
                                     <td><?php echo date('M j, Y', strtotime($borrowing['issue_date'])); ?></td>
                                     <td><?php echo date('M j, Y', strtotime($borrowing['due_date'])); ?></td>
                                     <td>
@@ -465,56 +446,13 @@ $pageTitle = 'My Borrowings';
                                     <td>
                                         <?php echo htmlspecialchars($borrowing['issued_by_first_name'] . ' ' . $borrowing['issued_by_last_name']); ?>
                                     </td>
-                                </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                </div>
-            <?php endif; ?>
-        </div>
-        
-        <div class="section">
-            <div class="section-header">
-                <h2 class="section-title"><i class="fas fa-money-bill-wave"></i> Outstanding Fines</h2>
-            </div>
-            
-            <?php if (empty($unpaidFines)): ?>
-                <div class="no-data">
-                    <i class="fas fa-check-circle"></i>
-                    <h3>No Outstanding Fines</h3>
-                    <p>You don't have any unpaid fines</p>
-                </div>
-            <?php else: ?>
-                <div class="table-container">
-                    <table class="table">
-                        <thead>
-                            <tr>
-                                <th>Book Title</th>
-                                <th>Transaction ID</th>
-                                <th>Reason</th>
-                                <th>Issued Date</th>
-                                <th>Amount</th>
-                                <th>Status</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach ($unpaidFines as $fine): ?>
-                                <tr>
-                                    <td><?php echo htmlspecialchars($fine['book_title'] ?? 'N/A'); ?></td>
-                                    <td><?php echo htmlspecialchars($fine['transaction_id'] ?? 'N/A'); ?></td>
-                                    <td><?php echo ucfirst(str_replace('_', ' ', $fine['reason'])); ?></td>
-                                    <td><?php echo date('M j, Y', strtotime($fine['issued_date'])); ?></td>
-                                    <td class="fine-amount">₵<?php echo number_format($fine['amount'], 2); ?></td>
                                     <td>
-                                        <span class="status-badge status-overdue">Pending</span>
+                                        <a href="view_borrowing.php?id=<?php echo $borrowing['id']; ?>" class="action-btn" title="View Borrowing Details">
+                                            <i class="fas fa-file-alt"></i>
+                                        </a>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>
-                            <tr style="background-color: #f8f9fa; font-weight: bold;">
-                                <td colspan="4" style="text-align: right;">Total Outstanding:</td>
-                                <td class="fine-amount">₵<?php echo number_format($totalUnpaidFines, 2); ?></td>
-                                <td></td>
-                            </tr>
                         </tbody>
                     </table>
                 </div>

@@ -189,12 +189,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $stmt = $db->prepare("
                         INSERT INTO users 
                         (user_id, username, email, password_hash, first_name, last_name, 
-                         phone, role, library_id, email_verified, email_verification_token, created_at, status)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, 'supervisor', ?, FALSE, ?, NOW(), 'pending')
+                         phone, date_of_birth, role, library_id, email_verified, email_verification_token, created_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'supervisor', ?, FALSE, ?, NOW())
                     ");
                     $stmt->execute([
                         $userId, $userData['username'], $userData['email'], $passwordHash,
-                        $userData['first_name'], $userData['last_name'], $userData['phone'], $libraryId, $verificationToken
+                        $userData['first_name'], $userData['last_name'], $userData['phone'], 
+                        !empty($userData['date_of_birth']) ? $userData['date_of_birth'] : null,
+                        $libraryId, $verificationToken
                     ]);
                     $userDbId = $db->lastInsertId();
                     

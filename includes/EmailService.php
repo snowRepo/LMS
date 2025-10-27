@@ -214,6 +214,13 @@ class EmailService {
     }
     
     /**
+     * Alias for sendEmailVerification (for backward compatibility)
+     */
+    public function sendVerificationEmail($userEmail, $userName, $verificationToken) {
+        return $this->sendEmailVerification($userEmail, $userName, $verificationToken);
+    }
+    
+    /**
      * Send subscription confirmation email
      */
     public function sendSubscriptionConfirmation($userEmail, $emailData) {

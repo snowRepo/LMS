@@ -29,7 +29,7 @@ if (isset($_GET['token']) && !empty($_GET['token'])) {
             FROM users 
             WHERE email_verification_token = ? 
             AND email_verified = FALSE 
-            AND status = 'active'
+            AND status = 'pending'
         ");
         $stmt->execute([$token]);
         $user = $stmt->fetch();

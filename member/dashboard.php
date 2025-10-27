@@ -24,42 +24,35 @@ $db = Database::getInstance()->getConnection();
 $borrowedBooks = 0;
 $reservedBooks = 0;
 $dueBooks = 0;
-$fines = 0.00;
 
 try {
     // Borrowed books count
-    $stmt = $db->prepare("SELECT COUNT(*) as total FROM borrowings WHERE user_id = ? AND status = 'active'");
+    $stmt = $db->prepare("SELECT COUNT(*) as total FROM borrowings WHERE member_id = ? AND status = 'active'");
     $stmt->execute([$_SESSION['user_id']]);
     $borrowedBooks = $stmt->fetch()['total'];
     
-    // Reserved books count
-    $stmt = $db->prepare("SELECT COUNT(*) as total FROM reservations WHERE user_id = ? AND status = 'active'");
+    // Reserved books count - Fixed to check for 'approved' status instead of 'active'
+    $stmt = $db->prepare("SELECT COUNT(*) as total FROM reservations WHERE member_id = ? AND status = 'approved'");
     $stmt->execute([$_SESSION['user_id']]);
     $reservedBooks = $stmt->fetch()['total'];
     
     // Due books count
-    $stmt = $db->prepare("SELECT COUNT(*) as total FROM borrowings WHERE user_id = ? AND status = 'active' AND due_date < CURDATE()");
+    $stmt = $db->prepare("SELECT COUNT(*) as total FROM borrowings WHERE member_id = ? AND status = 'active' AND due_date < CURDATE()");
     $stmt->execute([$_SESSION['user_id']]);
     $dueBooks = $stmt->fetch()['total'];
-    
-    // Total fines
-    $stmt = $db->prepare("SELECT COALESCE(SUM(amount), 0) as total FROM fines WHERE user_id = ? AND status = 'unpaid'");
-    $stmt->execute([$_SESSION['user_id']]);
-    $fines = $stmt->fetch()['total'];
     
 } catch (Exception $e) {
     // Handle error silently
     $borrowedBooks = 0;
     $reservedBooks = 0;
     $dueBooks = 0;
-    $fines = 0.00;
 }
 
 // Fetch library information
 $libraryInfo = [];
 try {
     $stmt = $db->prepare("
-        SELECT l.library_name, l.address, l.phone, l.email, l.website
+        SELECT l.library_name, l.address, l.phone, l.email, l.website, l.logo_path
         FROM libraries l
         JOIN users u ON l.id = u.library_id
         WHERE u.id = ?
@@ -197,7 +190,7 @@ $pageTitle = 'Member Dashboard';
         /* Stat Cards Grid */
         .stat-cards {
             display: grid;
-            grid-template-columns: repeat(4, 1fr);
+            grid-template-columns: repeat(3, 1fr);
             gap: 1.5rem;
             margin-bottom: 2rem;
         }
@@ -450,13 +443,17 @@ $pageTitle = 'Member Dashboard';
         <?php if (!empty($libraryInfo)): ?>
         <div class="library-info">
             <div class="library-header">
-                <h2><i class="fas fa-university"></i> Your Library</h2>
+                <?php if (!empty($libraryInfo['logo_path']) && file_exists('../' . $libraryInfo['logo_path'])): ?>
+                    <h2><img src="../<?php echo htmlspecialchars($libraryInfo['logo_path']); ?>" alt="Library Logo" style="height: 40px; width: auto; margin-right: 12px; vertical-align: middle;"> <?php echo htmlspecialchars($libraryInfo['library_name']); ?></h2>
+                <?php else: ?>
+                    <h2><i class="fas fa-university"></i> <?php echo htmlspecialchars($libraryInfo['library_name']); ?></h2>
+                <?php endif; ?>
             </div>
             
             <div class="library-details">
                 <div class="library-detail-item">
-                    <span class="library-detail-label">Library Name</span>
-                    <span class="library-detail-value"><?php echo htmlspecialchars($libraryInfo['library_name']); ?></span>
+                    <span class="library-detail-label">Library Website</span>
+                    <span class="library-detail-value"><?php echo htmlspecialchars($libraryInfo['website']); ?></span>
                 </div>
                 
                 <?php if (!empty($libraryInfo['address'])): ?>
@@ -477,13 +474,6 @@ $pageTitle = 'Member Dashboard';
                 <div class="library-detail-item">
                     <span class="library-detail-label">Email</span>
                     <span class="library-detail-value"><?php echo htmlspecialchars($libraryInfo['email']); ?></span>
-                </div>
-                <?php endif; ?>
-                
-                <?php if (!empty($libraryInfo['website'])): ?>
-                <div class="library-detail-item">
-                    <span class="library-detail-label">Website</span>
-                    <span class="library-detail-value"><?php echo htmlspecialchars($libraryInfo['website']); ?></span>
                 </div>
                 <?php endif; ?>
             </div>
@@ -536,20 +526,7 @@ $pageTitle = 'Member Dashboard';
                 </div>
             </div>
             
-            <!-- Fines Card -->
-            <div class="stat-card fines-total">
-                <div class="stat-card-header">
-                    <div class="stat-card-title">Total Fines</div>
-                    <div class="stat-card-icon">
-                        <i class="fas fa-money-bill-wave"></i>
-                    </div>
-                </div>
-                <div class="stat-card-value">₵<?php echo number_format($fines, 2); ?></div>
-                <div class="stat-card-footer">
-                    <i class="fas fa-info-circle"></i>
-                    <span>outstanding balance</span>
-                </div>
-            </div>
+            <!-- Fines Card - Removed as per requirements -->
         </div>
         
         <div class="dashboard-sections">

@@ -573,7 +573,10 @@ $pageTitle = 'Conversation' . ($senderName ? ' with ' . $senderName : '');
                     const recipientRole = document.getElementById('sender-role').value;
                     
                     // Set the correct recipient type based on the role
-                    formData.append('recipient_type', recipientRole);
+                    const recipientType = recipientRole === 'member' ? 'individual_member' : 
+                                        recipientRole === 'librarian' ? 'individual_librarian' : 
+                                        recipientRole === 'supervisor' ? 'supervisor' : recipientRole;
+                    formData.append('recipient_type', recipientType);
                     formData.append('individual_recipient', senderId);
                     formData.append('subject', 'New message');
                     formData.append('message_body', message);

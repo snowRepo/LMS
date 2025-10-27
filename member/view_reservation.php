@@ -264,6 +264,21 @@ try {
             color: #9e9e9e; 
         }
         
+        .status-fulfilled { 
+            background: #e3f2fd; 
+            color: #1565c0; 
+        }
+        
+        .status-borrowed { 
+            background: #b2ebf2; 
+            color: #00796b; 
+        }
+        
+        .status-returned { 
+            background: #c8e6c9; 
+            color: #2e7d32; 
+        }
+        
         .notes-section {
             background: #f8f9fa;
             border-radius: 8px;
@@ -428,6 +443,18 @@ try {
                                         $statusClass = 'status-cancelled';
                                         $statusText = 'Cancelled';
                                         break;
+                                    case 'fulfilled':
+                                        $statusClass = 'status-fulfilled';
+                                        $statusText = 'Fulfilled';
+                                        break;
+                                    case 'borrowed':
+                                        $statusClass = 'status-borrowed';
+                                        $statusText = 'Borrowed';
+                                        break;
+                                    case 'returned':
+                                        $statusClass = 'status-returned';
+                                        $statusText = 'Returned';
+                                        break;
                                     default:
                                         $statusClass = 'status-pending';
                                         $statusText = ucfirst($reservation['status']);
@@ -459,7 +486,17 @@ try {
                                     <?php echo htmlspecialchars($reservation['librarian_notes']); ?>
                                 </div>
                             </div>
+                        <?php elseif (!empty($reservation['rejection_reason'])): ?>
+                            <div class="notes-section" style="border-left-color: #f39c12;">
+                                <div class="notes-header">
+                                    <i class="fas fa-comment"></i> Librarian Response
+                                </div>
+                                <div class="notes-content">
+                                    <?php echo htmlspecialchars($reservation['rejection_reason']); ?>
+                                </div>
+                            </div>
                         <?php endif; ?>
+
                     </div>
                     
                     <div class="action-buttons">
@@ -481,8 +518,28 @@ try {
     <script>
         function cancelReservation(reservationId) {
             if (confirm('Are you sure you want to cancel this reservation?')) {
-                // In a full implementation, this would make an AJAX call to cancel the reservation
-                alert('In a full implementation, this would cancel the reservation.');
+                fetch('process_cancel_reservation.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: 'reservation_id=' + reservationId
+                })
+                .then(function(response) {
+                    return response.json();
+                })
+                .then(function(data) {
+                    if (data.success) {
+                        alert('Reservation cancelled successfully!');
+                        location.reload();
+                    } else {
+                        alert('Error: ' + data.message);
+                    }
+                })
+                .catch(function(error) {
+                    console.error('Error:', error);
+                    alert('An error occurred while cancelling the reservation.');
+                });
             }
         }
     </script>

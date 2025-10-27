@@ -33,7 +33,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt = $db->prepare("
                 SELECT id, username, email, first_name, last_name, email_verified, email_verification_token, created_at
                 FROM users 
-                WHERE email = ? AND email_verified = FALSE AND status = 'active'
+                WHERE email = ? AND email_verified = FALSE AND status = 'pending'
             ");
             $stmt->execute([$email]);
             $user = $stmt->fetch();

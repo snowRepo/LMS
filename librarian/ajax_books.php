@@ -43,26 +43,28 @@ try {
                     exit;
                 }
                 
-                // Get form data
-                $title = trim($_POST['title']);
-                $subtitle = trim($_POST['subtitle']);
-                $isbn = trim($_POST['isbn']);
+                // Get form data with proper null checks
+                $title = isset($_POST['title']) ? trim($_POST['title']) : '';
+                $subtitle = isset($_POST['subtitle']) ? trim($_POST['subtitle']) : '';
+                $isbn = isset($_POST['isbn']) ? trim($_POST['isbn']) : '';
                 // Convert empty ISBN to NULL to avoid unique constraint violations
                 $isbn = ($isbn === '') ? null : $isbn;
-                $authorName = trim($_POST['author_name']);
-                $categoryId = $_POST['category_id'];
-                $publisherName = trim($_POST['publisher_name']);
-                $edition = trim($_POST['edition']);
-                $publicationYear = trim($_POST['publication_year']);
-                $pages = trim($_POST['pages']);
-                $language = trim($_POST['language']);
-                $description = trim($_POST['description']);
-                $totalCopies = (int)$_POST['total_copies'];
-                $availableCopies = (int)$_POST['available_copies'];
-                $location = trim($_POST['location']);
-                $price = trim($_POST['price']);
-                $status = $_POST['status'];
-                $bookId = trim($_POST['book_id']);
+                $authorName = isset($_POST['author_name']) ? trim($_POST['author_name']) : '';
+                $categoryId = isset($_POST['category_id']) ? $_POST['category_id'] : '';
+                $publisherName = isset($_POST['publisher_name']) ? trim($_POST['publisher_name']) : '';
+                $edition = isset($_POST['edition']) ? trim($_POST['edition']) : '';
+                $publicationYear = isset($_POST['publication_year']) ? trim($_POST['publication_year']) : '';
+                // Convert empty publication year to NULL
+                $publicationYear = ($publicationYear === '') ? null : (int)$publicationYear;
+                $pages = isset($_POST['pages']) ? trim($_POST['pages']) : '';
+                $language = isset($_POST['language']) ? trim($_POST['language']) : '';
+                $description = isset($_POST['description']) ? trim($_POST['description']) : '';
+                $totalCopies = isset($_POST['total_copies']) ? (int)$_POST['total_copies'] : 0;
+                $availableCopies = isset($_POST['available_copies']) ? (int)$_POST['available_copies'] : 0;
+                $location = isset($_POST['location']) ? trim($_POST['location']) : '';
+                $price = isset($_POST['price']) ? trim($_POST['price']) : '';
+                $status = isset($_POST['status']) ? $_POST['status'] : 'available';
+                $bookId = isset($_POST['book_id']) ? trim($_POST['book_id']) : '';
                 
                 // Validate required fields
                 if (empty($title) || empty($authorName) || empty($categoryId) || empty($bookId)) {

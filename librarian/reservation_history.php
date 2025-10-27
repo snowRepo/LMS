@@ -39,6 +39,8 @@ try {
                        WHEN r.status = 'rejected' THEN 'Rejected'
                        WHEN r.status = 'cancelled' THEN 'Cancelled'
                        WHEN r.status = 'fulfilled' THEN 'Fulfilled'
+                       WHEN r.status = 'borrowed' THEN 'Borrowed'
+                       WHEN r.status = 'returned' THEN 'Returned'
                        WHEN r.status = 'expired' THEN 'Expired'
                        ELSE 'Unknown'
                    END as status_text,
@@ -48,6 +50,8 @@ try {
                        WHEN r.status = 'rejected' THEN 'status-rejected'
                        WHEN r.status = 'cancelled' THEN 'status-cancelled'
                        WHEN r.status = 'fulfilled' THEN 'status-fulfilled'
+                       WHEN r.status = 'borrowed' THEN 'status-borrowed'
+                       WHEN r.status = 'returned' THEN 'status-returned'
                        WHEN r.status = 'expired' THEN 'status-expired'
                        ELSE 'status-unknown'
                    END as status_class
@@ -73,6 +77,8 @@ try {
                        WHEN r.status = 'rejected' THEN 'Rejected'
                        WHEN r.status = 'cancelled' THEN 'Cancelled'
                        WHEN r.status = 'fulfilled' THEN 'Fulfilled'
+                       WHEN r.status = 'borrowed' THEN 'Borrowed'
+                       WHEN r.status = 'returned' THEN 'Returned'
                        WHEN r.status = 'expired' THEN 'Expired'
                        ELSE 'Unknown'
                    END as status_text,
@@ -82,6 +88,8 @@ try {
                        WHEN r.status = 'rejected' THEN 'status-rejected'
                        WHEN r.status = 'cancelled' THEN 'status-cancelled'
                        WHEN r.status = 'fulfilled' THEN 'status-fulfilled'
+                       WHEN r.status = 'borrowed' THEN 'status-borrowed'
+                       WHEN r.status = 'returned' THEN 'status-returned'
                        WHEN r.status = 'expired' THEN 'status-expired'
                        ELSE 'status-unknown'
                    END as status_class
@@ -276,6 +284,16 @@ $pageTitle = 'Reservation History';
         .status-expired { 
             background: #ffecb3; 
             color: #ff8f00; 
+        }
+        
+        .status-borrowed { 
+            background: #b2ebf2; 
+            color: #00796b; 
+        }
+        
+        .status-returned { 
+            background: #c8e6c9; 
+            color: #2e7d32; 
         }
         
         .text-muted { color: var(--gray-600); }

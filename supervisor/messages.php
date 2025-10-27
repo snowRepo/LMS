@@ -773,10 +773,7 @@ $pageTitle = 'Messages';
                             <div class="no-messages">
                                 <i class="fas fa-comments fa-3x text-muted mb-3"></i>
                                 <h3>No Conversations</h3>
-                                <p>You don't have any conversations yet.</p>
-                                <button class="btn btn-primary mt-3" id="composeBtn2">
-                                    <i class="fas fa-plus me-1"></i> Start a Conversation
-                                </button>
+                                <p>You don't have any conversations yet. Use the Compose button on the left to start a conversation.</p>
                             </div>
                         <?php endif; ?>
                     </div>
@@ -866,15 +863,6 @@ $pageTitle = 'Messages';
                     document.dispatchEvent(composeEvent);
                 }
             });
-            
-            // Add event listener for the second compose button
-            const composeBtn2 = document.getElementById('composeBtn2');
-            if (composeBtn2) {
-                composeBtn2.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    document.getElementById('composeBtn').click();
-                });
-            }
             
             // Update notification badges periodically
             setInterval(updateInboxCount, 30000);

@@ -304,8 +304,9 @@ $pageTitle = 'Borrowing';
         .table th,
         .table td {
             padding: 1rem 1.5rem;
-            text-align: left;
+            text-align: center;
             border-bottom: 1px solid var(--gray-200);
+            vertical-align: middle;
         }
         
         .table th {
@@ -328,7 +329,7 @@ $pageTitle = 'Borrowing';
             font-weight: 500;
         }
         
-        .status-active { background: #e3f2fd; color: #1976d2; }
+        .status-active { background: #1b5e20; color: white; }
         .status-due { background: #fff3e0; color: #ef6c00; }
         .status-overdue { background: #ffebee; color: #d32f2f; }
         
@@ -339,31 +340,63 @@ $pageTitle = 'Borrowing';
         .action-buttons {
             display: flex;
             gap: 0.5rem;
+            justify-content: center;
+        }
+        
+        .book-info {
+            text-align: center;
+        }
+        
+        .book-info .text-muted {
+            text-align: center;
         }
         
         .action-btn {
-            background: none;
+            padding: 0.5rem 1rem;
+            font-size: 1.2rem; /* Match books page icon size */
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            margin: 0 0.25rem;
             border: none;
-            color: var(--gray-600);
             cursor: pointer;
-            padding: 0.25rem;
-            border-radius: 4px;
-            transition: background 0.2s, color 0.2s;
         }
         
         .action-btn:hover {
-            background: var(--gray-200);
-            color: var(--gray-800);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.1);
         }
         
-        .action-btn.danger:hover {
-            color: var(--danger-color);
-            background: #ffebee;
+        /* Color styling for action buttons */
+        .btn-view {
+            background: #3498DB;
+            color: white;
         }
         
-        .action-btn.success:hover {
-            color: var(--success-color);
-            background: #e8f5e9;
+        .btn-renew {
+            background: #ffc107;
+            color: #212529;
+        }
+        
+        .btn-return {
+            background: #28a745;
+            color: white;
+        }
+        
+        /* Hover effects */
+        .btn-view:hover {
+            background: #2980B9;
+        }
+        
+        .btn-renew:hover {
+            background: #e0a800;
+        }
+        
+        .btn-return:hover {
+            background: #218838;
         }
     </style>
 </head>
@@ -380,9 +413,12 @@ $pageTitle = 'Borrowing';
         <div class="section">
             <div class="section-header">
                 <h2 class="section-title"><i class="fas fa-book-reader"></i> Active Borrowings</h2>
-                <div>
+                <div style="display: flex; gap: 1rem;">
                     <a href="process_borrowing.php" class="btn">
                         <i class="fas fa-plus"></i> New Borrowing
+                    </a>
+                    <a href="borrowing_history.php" class="btn btn-outline">
+                        <i class="fas fa-history"></i> Borrowing History
                     </a>
                 </div>
             </div>
@@ -444,11 +480,13 @@ $pageTitle = 'Borrowing';
                                 ?>
                                     <tr>
                                         <td>
-                                            <div><strong><?php echo htmlspecialchars($borrowing['title']); ?></strong></div>
-                                            <div class="text-muted"><?php echo htmlspecialchars($borrowing['isbn']); ?></div>
+                                            <div class="book-info">
+                                                <div><strong><?php echo htmlspecialchars($borrowing['title']); ?></strong></div>
+                                                <div class="text-muted"><?php echo htmlspecialchars($borrowing['isbn']); ?></div>
+                                            </div>
                                         </td>
                                         <td><?php echo htmlspecialchars($borrowing['member_name']); ?></td>
-                                        <td><?php echo date('M d, Y', strtotime($borrowing['borrow_date'])); ?></td>
+                                        <td><?php echo date('M d, Y', strtotime($borrowing['issue_date'])); ?></td>
                                         <td>
                                             <?php 
                                                 echo date('M d, Y', strtotime($borrowing['due_date']));
@@ -464,26 +502,21 @@ $pageTitle = 'Borrowing';
                                         <td><span class="status-badge <?php echo $statusClass; ?>"><?php echo $statusText; ?></span></td>
                                         <td>
                                             <div class="action-buttons">
-                                                <button class="action-btn success" title="Return Book">
+                                                <button class="action-btn btn-return" title="Mark as Returned" data-id="<?php echo $borrowing['id']; ?>">
                                                     <i class="fas fa-undo"></i>
                                                 </button>
-                                                <button class="action-btn" title="Renew">
+                                                <button class="action-btn btn-renew" title="Renew" data-id="<?php echo $borrowing['id']; ?>">
                                                     <i class="fas fa-sync-alt"></i>
                                                 </button>
-                                                <button class="action-btn" title="View Details">
-                                                    <i class="fas fa-eye"></i>
-                                                </button>
+                                                <a href="view_borrowing.php?id=<?php echo $borrowing['id']; ?>" class="action-btn btn-view" title="View Details">
+                                                    <i class="fas fa-file-alt"></i>
+                                                </a>
                                             </div>
                                         </td>
                                     </tr>
                                 <?php endforeach; ?>
                             </tbody>
                         </table>
-                    </div>
-                    <div style="padding: 1rem 1.5rem; border-top: 1px solid var(--gray-200);">
-                        <a href="all_borrowings.php" class="btn btn-outline">
-                            <i class="fas fa-list"></i> View All Borrowings
-                        </a>
                     </div>
                 <?php else: ?>
                     <div style="padding: 2rem; text-align: center; color: var(--gray-600);">
@@ -497,24 +530,80 @@ $pageTitle = 'Borrowing';
     
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script>
-        // Function to handle return book action
-        function returnBook(borrowingId) {
-            if (confirm('Are you sure you want to mark this book as returned?')) {
-                // AJAX call to process return
-                $.post('process_return.php', { borrowing_id: borrowingId })
-                    .done(function(response) {
-                        const result = JSON.parse(response);
-                        if (result.success) {
-                            // Reload the page or update the UI
-                            location.reload();
-                        } else {
-                            alert('Error: ' + result.message);
-                        }
-                    })
-                    .fail(function() {
-                        alert('Error processing return. Please try again.');
-                    });
+        // Toast Notification Functions
+        function showToast(message, type = 'info') {
+            // Create toast container if it doesn't exist
+            let toastContainer = document.getElementById('toast-container');
+            if (!toastContainer) {
+                toastContainer = document.createElement('div');
+                toastContainer.id = 'toast-container';
+                document.body.appendChild(toastContainer);
             }
+            
+            // Create toast element
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+            
+            // Set icon based on type
+            let iconClass = 'fa-info-circle';
+            if (type === 'success') iconClass = 'fa-check-circle';
+            else if (type === 'error') iconClass = 'fa-exclamation-circle';
+            else if (type === 'warning') iconClass = 'fa-exclamation-triangle';
+            
+            toast.innerHTML = `
+                <div class="toast-content">
+                    <div class="toast-icon">
+                        <i class="fas ${iconClass}"></i>
+                    </div>
+                    <div class="toast-message">${message}</div>
+                    <button class="toast-close">&times;</button>
+                </div>
+            `;
+            
+            // Add toast to container
+            toastContainer.appendChild(toast);
+            
+            // Show toast with animation
+            setTimeout(() => {
+                toast.classList.add('show');
+            }, 10);
+            
+            // Add close button event listener
+            const closeBtn = toast.querySelector('.toast-close');
+            closeBtn.addEventListener('click', () => {
+                toast.classList.remove('show');
+                toast.classList.add('hide');
+                setTimeout(() => {
+                    if (toast.parentNode) {
+                        toast.parentNode.removeChild(toast);
+                    }
+                }, 300);
+            });
+            
+            // Auto hide toast after 5 seconds
+            setTimeout(() => {
+                if (toast.parentNode) {
+                    toast.classList.remove('show');
+                    toast.classList.add('hide');
+                    setTimeout(() => {
+                        if (toast.parentNode) {
+                            toast.parentNode.removeChild(toast);
+                        }
+                    }, 300);
+                }
+            }, 5000);
+        }
+        
+        
+        // Function to mark book as returned
+        function markAsReturned(borrowingId) {
+            // Show browser confirmation dialog
+            if (!confirm('Are you sure you want to mark this book as returned?')) {
+                return; // User cancelled the action
+            }
+            
+            // Redirect to process return with borrowing ID
+            window.location.href = 'process_return.php?borrowing_id=' + borrowingId;
         }
         
         // Function to handle renew book action
@@ -539,10 +628,31 @@ $pageTitle = 'Borrowing';
         
         // Attach event listeners when the document is ready
         $(document).ready(function() {
-            // Handle return book button clicks
+            // Show toast notification if success or error parameter is present
+            const urlParams = new URLSearchParams(window.location.search);
+            const success = urlParams.get('success');
+            const error = urlParams.get('error');
+            
+            if (success) {
+                showToast(success, 'success');
+                // Remove the success parameter from URL to prevent repeated notifications
+                urlParams.delete('success');
+                const newUrl = window.location.pathname + (urlParams.toString() ? '?' + urlParams.toString() : '');
+                window.history.replaceState({}, document.title, newUrl);
+            }
+            
+            if (error) {
+                showToast(error, 'error');
+                // Remove the error parameter from URL to prevent repeated notifications
+                urlParams.delete('error');
+                const newUrl = window.location.pathname + (urlParams.toString() ? '?' + urlParams.toString() : '');
+                window.history.replaceState({}, document.title, newUrl);
+            }
+            
+            // Handle mark as returned button clicks
             $('.btn-return').click(function() {
                 const borrowingId = $(this).data('id');
-                returnBook(borrowingId);
+                markAsReturned(borrowingId);
             });
             
             // Handle renew book button clicks
@@ -550,6 +660,8 @@ $pageTitle = 'Borrowing';
                 const borrowingId = $(this).data('id');
                 renewBook(borrowingId);
             });
+            
+
         });
     </script>
 </body>

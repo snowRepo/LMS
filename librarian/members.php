@@ -811,12 +811,18 @@ $pageTitle = 'Members Management';
                             <?php foreach ($members as $member): ?>
                                 <tr>
                                     <td>
-                                        <div class="image-placeholder">
-                                            <?php 
-                                            $initials = substr($member['first_name'], 0, 1) . substr($member['last_name'], 0, 1);
-                                            echo strtoupper($initials);
-                                            ?>
-                                        </div>
+                                        <?php if (!empty($member['profile_image']) && file_exists('../' . $member['profile_image'])): ?>
+                                            <img src="../<?php echo htmlspecialchars($member['profile_image']); ?>" 
+                                                 alt="<?php echo htmlspecialchars($member['full_name']); ?>" 
+                                                 style="width: 50px; height: 50px; border-radius: 50%; object-fit: cover; margin: 0 auto; display: block;">
+                                        <?php else: ?>
+                                            <div class="image-placeholder">
+                                                <?php 
+                                                $initials = substr($member['first_name'], 0, 1) . substr($member['last_name'], 0, 1);
+                                                echo strtoupper($initials);
+                                                ?>
+                                            </div>
+                                        <?php endif; ?>
                                     </td>
                                     <td><?php echo htmlspecialchars($member['full_name']); ?></td>
                                     <td><?php echo htmlspecialchars($member['email']); ?></td>

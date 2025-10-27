@@ -34,7 +34,7 @@ class ReservationService {
                 throw new Exception('Only pending reservations can be approved');
             }
             
-            // Update reservation
+            // Update reservation (no change to available copies - already decremented when reservation was made)
             $pickupDeadline = date('Y-m-d', strtotime('+7 days'));
             $stmt = $this->db->prepare("
                 UPDATE reservations 
@@ -56,11 +56,15 @@ class ReservationService {
             ]);
             
             // Send notification to member (using the string user_id, not the integer id)
+            $message = "Your reservation for '{$reservation['book_title']}' has been approved. Please pick it up by $pickupDeadline.";
+            if (!empty($notes)) {
+                $message .= " Note from librarian: $notes";
+            }
             $this->sendStatusChangeNotification(
                 $reservation['member_user_id'],  // Use the string user_id
                 $reservationId,
                 'approved',
-                "Your reservation for '{$reservation['book_title']}' has been approved. Please pick it up by $pickupDeadline."
+                $message
             );
             
             $this->db->commit();
@@ -90,11 +94,12 @@ class ReservationService {
                 throw new Exception('Only pending reservations can be rejected');
             }
             
+            // Reason is optional for rejection, use default message if empty
             if (empty($reason)) {
-                throw new Exception('A rejection reason is required');
+                $reason = 'Reservation rejected by librarian.';
             }
             
-            // Update reservation
+            // Update reservation - store reason only in rejection_reason column for rejection
             $stmt = $this->db->prepare("
                 UPDATE reservations 
                 SET status = ?,
@@ -112,12 +117,26 @@ class ReservationService {
                 $reservationId
             ]);
             
+            // Increment available copies when reservation is rejected (to restore the count)
+            $stmt = $this->db->prepare("
+                UPDATE books 
+                SET available_copies = available_copies + 1 
+                WHERE id = ?
+            ");
+            $stmt->execute([$reservation['book_id']]);
+            
             // Send notification to member (using the string user_id, not the integer id)
+            $message = "Your reservation for '{$reservation['book_title']}' has been rejected.";
+            if (!empty($reason) && $reason !== 'Reservation rejected by librarian.') {
+                $message .= " Reason: $reason";
+            } else {
+                $message .= " Please contact the library for more information.";
+            }
             $this->sendStatusChangeNotification(
                 $reservation['member_user_id'],  // Use the string user_id
                 $reservationId,
                 'rejected',
-                "Your reservation for '{$reservation['book_title']}' has been rejected. Reason: $reason"
+                $message
             );
             
             $this->db->commit();
@@ -142,6 +161,7 @@ class ReservationService {
                    b.isbn,
                    b.cover_image,
                    b.category_id,
+                   b.book_id as book_internal_id,
                    c.name as category_name,
                    CONCAT(u.first_name, ' ', u.last_name) as member_name,
                    u.email as member_email,
@@ -168,11 +188,21 @@ class ReservationService {
      */
     public function sendStatusChangeNotification($userId, $reservationId, $action, $message) {
         $title = "Reservation " . ucfirst($action);
+        // Map reservation actions to valid notification types
+        $type = 'info';
+        if ($action === 'approved') {
+            $type = 'success';
+        } elseif ($action === 'rejected') {
+            $type = 'warning';
+        } elseif ($action === 'expired' || $action === 'cancelled') {
+            $type = 'error';
+        }
+        
         $this->notificationService->createNotification(
             $userId,
             $title,
             $message,
-            'reservation_' . $action,
+            $type,
             "/member/reservations.php"
         );
         
@@ -180,6 +210,73 @@ class ReservationService {
         // $this->sendReservationEmail($userId, $title, $message);
     }
     
-    // Add other methods like fulfill(), cancel(), checkExpiredReservations(), etc.
+    /**
+     * Check and update expired reservations
+     */
+    public function checkExpiredReservations() {
+        try {
+            $this->db->beginTransaction();
+            
+            // Find all pending reservations that have expired
+            $stmt = $this->db->prepare("
+                SELECT r.id, r.member_id, r.book_id, b.title as book_title, 
+                       CONCAT(u.first_name, ' ', u.last_name) as member_name,
+                       u.user_id as member_user_id
+                FROM reservations r
+                JOIN books b ON r.book_id = b.id
+                JOIN users u ON r.member_id = u.id
+                WHERE r.status = 'pending' AND r.expiry_date < CURDATE()
+            ");
+            $stmt->execute();
+            $expiredReservations = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            
+            $updatedCount = 0;
+            
+            if (count($expiredReservations) > 0) {
+                // Update each expired reservation
+                foreach ($expiredReservations as $reservation) {
+                    // Update reservation status to expired
+                    $updateStmt = $this->db->prepare("
+                        UPDATE reservations 
+                        SET status = 'expired',
+                            updated_at = NOW()
+                        WHERE id = ?
+                    ");
+                    $updateStmt->execute([$reservation['id']]);
+                    
+                    // Increment available copies when reservation expires (to restore the count)
+                    $updateStmt = $this->db->prepare("
+                        UPDATE books 
+                        SET available_copies = available_copies + 1 
+                        WHERE id = ?
+                    ");
+                    $updateStmt->execute([$reservation['book_id']]);
+                    
+                    // Send notification to member
+                    $message = "Your reservation for '{$reservation['book_title']}' has expired as it was not actioned within the 7-day period.";
+                    $this->sendStatusChangeNotification(
+                        $reservation['member_user_id'],
+                        $reservation['id'],
+                        'expired',
+                        $message
+                    );
+                    
+                    $updatedCount++;
+                }
+            }
+            
+            $this->db->commit();
+            return $updatedCount;
+            
+        } catch (Exception $e) {
+            if ($this->db->inTransaction()) {
+                $this->db->rollBack();
+            }
+            error_log("Error checking expired reservations: " . $e->getMessage());
+            throw $e;
+        }
+    }
+    
+    // Add other methods like fulfill(), cancel(), etc.
 }
 ?>

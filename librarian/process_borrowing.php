@@ -5,6 +5,7 @@ define('LMS_ACCESS', true);
 require_once '../includes/EnvLoader.php';
 EnvLoader::load();
 include '../config/config.php';
+require_once '../includes/NotificationService.php';
 
 // Start session
 if (session_status() == PHP_SESSION_NONE) {
@@ -35,7 +36,8 @@ if (isset($_GET['action'])) {
                     CONCAT(first_name, ' ', last_name) as name, 
                     email,
                     role,
-                    status
+                    status,
+                    profile_image
                 FROM users 
                 WHERE 
                     (first_name LIKE ? OR 
@@ -67,6 +69,9 @@ if (isset($_GET['action'])) {
     
     if ($_GET['action'] === 'search_books' && !empty($_GET['term'])) {
         try {
+            // Get member ID if provided
+            $memberId = $_GET['member_id'] ?? null;
+            
             $stmt = $db->prepare("
                 SELECT 
                     b.id,
@@ -77,7 +82,8 @@ if (isset($_GET['action'])) {
                     c.name as category_name,
                     b.publication_year,
                     b.total_copies as quantity,
-                    (SELECT COUNT(*) FROM borrowings WHERE book_id = b.id AND return_date IS NULL) as borrowed_count
+                    b.available_copies as available,
+                    b.cover_image
                 FROM books b
                 LEFT JOIN categories c ON b.category_id = c.id
                 WHERE 
@@ -92,10 +98,26 @@ if (isset($_GET['action'])) {
             $stmt->execute([$searchParam, $searchParam, $searchParam]);
             $books = $stmt->fetchAll(PDO::FETCH_ASSOC);
             
-            // Calculate available quantity
-            foreach ($books as &$book) {
-                $book['available'] = $book['quantity'] - $book['borrowed_count'];
-                unset($book['borrowed_count']);
+            // Enhance books with reservation information if member is selected
+            if ($memberId) {
+                foreach ($books as &$book) {
+                    // Check if there's an approved reservation for this member and book
+                    $reservationStmt = $db->prepare("
+                        SELECT id, status
+                        FROM reservations 
+                        WHERE member_id = ? AND book_id = ? AND status IN ('approved', 'borrowed')
+                    ");
+                    $reservationStmt->execute([$memberId, $book['id']]);
+                    $reservation = $reservationStmt->fetch(PDO::FETCH_ASSOC);
+                    
+                    if ($reservation) {
+                        $book['has_reservation'] = true;
+                        $book['reservation_status'] = $reservation['status'];
+                    } else {
+                        $book['has_reservation'] = false;
+                        $book['reservation_status'] = null;
+                    }
+                }
             }
             
             // Log for debugging
@@ -122,7 +144,8 @@ if (isset($_GET['action'])) {
                     CONCAT(first_name, ' ', last_name) as name, 
                     email,
                     role,
-                    status
+                    status,
+                    profile_image
                 FROM users 
                 WHERE id = ? AND role = 'member'
             ");
@@ -139,7 +162,27 @@ if (isset($_GET['action'])) {
         try {
             $stmt = $db->prepare("
                 SELECT 
-                    b.*,
+                    b.id,
+                    b.book_id,
+                    b.isbn,
+                    b.title,
+                    b.author_name as author,
+                    b.description,
+                    b.edition,
+                    b.publication_year,
+                    b.pages,
+                    b.language,
+                    b.cover_image,
+                    b.category_id,
+                    b.library_id,
+                    b.total_copies as quantity,
+                    b.available_copies,
+                    b.location,
+                    b.price,
+                    b.added_by,
+                    b.created_at,
+                    b.updated_at,
+                    b.status,
                     c.name as category_name,
                     (SELECT COUNT(*) FROM borrowings WHERE book_id = b.id AND return_date IS NULL) as borrowed_count
                 FROM books b
@@ -150,7 +193,7 @@ if (isset($_GET['action'])) {
             $book = $stmt->fetch(PDO::FETCH_ASSOC);
             
             if ($book) {
-                $book['available'] = $book['quantity'] - $book['borrowed_count'];
+                $book['available'] = $book['available_copies'];
                 unset($book['borrowed_count']);
             }
             
@@ -184,53 +227,148 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             $db->beginTransaction();
             
-            // Check book availability
-            $stmt = $db->prepare("
-                SELECT 
-                    b.total_copies,
-                    (SELECT COUNT(*) FROM borrowings WHERE book_id = b.id AND return_date IS NULL) as borrowed_count
-                FROM books b
-                WHERE b.id = ?
+            // Check if there's an approved reservation for this member and book
+            // Also check for any reservation that might indicate the book was already accounted for
+            $reservationStmt = $db->prepare("
+                SELECT id, reservation_id, status
+                FROM reservations 
+                WHERE member_id = ? AND book_id = ? AND status IN ('approved', 'borrowed')
                 FOR UPDATE
-            
             ");
-            $stmt->execute([$bookId]);
-            $book = $stmt->fetch(PDO::FETCH_ASSOC);
+            $reservationStmt->execute([$memberId, $bookId]);
+            $existingReservation = $reservationStmt->fetch(PDO::FETCH_ASSOC);
             
-            if (!$book) {
-                throw new Exception('Book not found');
-            }
+            $fromReservation = !empty($existingReservation);
             
-            $available = $book['total_copies'] - $book['borrowed_count'];
-            
-            if ($available <= 0) {
-                throw new Exception('No available copies of this book');
+            if ($fromReservation) {
+                // If coming from reservation, check that the book is available
+                // (it should be available since it was reserved)
+                $stmt = $db->prepare("
+                    SELECT 
+                        b.available_copies
+                    FROM books b
+                    WHERE b.id = ?
+                    FOR UPDATE
+                ");
+                $stmt->execute([$bookId]);
+                $book = $stmt->fetch(PDO::FETCH_ASSOC);
+                
+                if (!$book) {
+                    throw new Exception('Book not found');
+                }
+                
+                // No need to decrement available copies - already done when reservation was made
+                // However, if there are no available copies, verify there's a valid reservation
+                if ($book['available_copies'] < 1) {
+                    // We already know there's a reservation ($fromReservation is true), so this is valid
+                    // The reservation guarantees that borrowing is allowed even with 0 available copies
+                }
+            } else {
+                // Direct borrowing - check and decrement available copies
+                $stmt = $db->prepare("
+                    SELECT 
+                        b.available_copies
+                    FROM books b
+                    WHERE b.id = ?
+                    FOR UPDATE
+                ");
+                $stmt->execute([$bookId]);
+                $book = $stmt->fetch(PDO::FETCH_ASSOC);
+                
+                if (!$book) {
+                    throw new Exception('Book not found');
+                }
+                
+                if ($book['available_copies'] <= 0) {
+                    throw new Exception('No available copies of this book');
+                }
+                
+                // Decrement available copies for direct borrowing
+                $stmt = $db->prepare("
+                    UPDATE books 
+                    SET available_copies = available_copies - 1 
+                    WHERE id = ?
+                ");
+                $stmt->execute([$bookId]);
             }
             
             // Create borrowing record
             $stmt = $db->prepare("
                 INSERT INTO borrowings (
+                    transaction_id,
                     member_id, 
                     book_id, 
-                    borrowed_date, 
+                    issued_by,
+                    issue_date, 
                     due_date, 
                     notes,
                     status
-                ) VALUES (?, ?, CURDATE(), ?, ?, 'borrowed')
+                ) VALUES (?, ?, ?, ?, CURDATE(), ?, ?, 'active')
             
             ");
             
+            // Generate transaction ID
+            $transactionId = 'TXN' . time() . rand(1000, 9999);
+            
             $success = $stmt->execute([
+                $transactionId,
                 $memberId,
                 $bookId,
+                $_SESSION['user_id'],
                 $dueDate,
                 $notes
             ]);
             
             if ($success) {
+                // If this borrowing came from a reservation, update the reservation status to 'borrowed'
+                if ($fromReservation) {
+                    $updateReservationStmt = $db->prepare("
+                        UPDATE reservations 
+                        SET status = 'borrowed',
+                            updated_at = NOW()
+                        WHERE id = ?
+                    ");
+                    $updateReservationStmt->execute([$existingReservation['id']]);
+                }
+                
+                // Send notification to member about the borrowing
+                try {
+                    // Get member details for notification
+                    $memberStmt = $db->prepare("
+                        SELECT u.user_id, CONCAT(u.first_name, ' ', u.last_name) as member_name, b.title as book_title
+                        FROM users u
+                        JOIN books b ON b.id = ?
+                        WHERE u.id = ?
+                    ");
+                    $memberStmt->execute([$bookId, $memberId]);
+                    $memberInfo = $memberStmt->fetch(PDO::FETCH_ASSOC);
+                    
+                    if ($memberInfo) {
+                        // Create notification service instance
+                        $notificationService = new NotificationService();
+                        
+                        // Prepare notification message
+                        $title = 'Book Borrowed';
+                        $message = "You have successfully borrowed '{$memberInfo['book_title']}'. The due date is " . date('M j, Y', strtotime($dueDate)) . ".";
+                        $actionUrl = "../member/borrowing.php";
+                        
+                        // Create notification for member
+                        $notificationService->createNotification(
+                            $memberInfo['user_id'],
+                            $title,
+                            $message,
+                            'success',
+                            $actionUrl
+                        );
+                    }
+                } catch (Exception $e) {
+                    // Log error but don't stop the process
+                    error_log("Error sending borrowing notification: " . $e->getMessage());
+                }
+                
                 $db->commit();
-                $_SESSION['success_message'] = 'Book borrowed successfully';
-                header('Location: borrowing.php');
+                // Redirect with success message for toast notification
+                header('Location: borrowing.php?success=' . urlencode('Book borrowed successfully'));
                 exit;
             } else {
                 throw new Exception('Failed to process borrowing');
@@ -609,6 +747,17 @@ if (!isset($_SESSION['csrf_token'])) {
                 <h2><i class="fas fa-exchange-alt"></i> Borrowing Form</h2>
             </div>
             
+            <?php if (!empty($errors)): ?>
+                <div style="background: #ffebee; border: 1px solid #ffcdd2; color: #c62828; padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem;">
+                    <strong>Error:</strong>
+                    <ul style="margin: 0.5rem 0 0 1rem;">
+                        <?php foreach ($errors as $error): ?>
+                            <li><?php echo htmlspecialchars($error); ?></li>
+                        <?php endforeach; ?>
+                    </ul>
+                </div>
+            <?php endif; ?>
+            
             <form id="borrowingForm" method="POST" action="">
                 <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
                 <div class="form-group">
@@ -626,7 +775,7 @@ if (!isset($_SESSION['csrf_token'])) {
                 
                 <div id="memberInfo" class="book-details">
                     <div style="display: flex; align-items: center;">
-                        <div class="book-cover">
+                        <div class="book-cover" id="memberAvatar">
                             <i class="fas fa-user" style="font-size: 2rem;"></i>
                         </div>
                         <div class="book-info">
@@ -658,7 +807,7 @@ if (!isset($_SESSION['csrf_token'])) {
                 
                 <div id="bookInfo" class="book-details">
                     <div style="display: flex;">
-                        <div class="book-cover">
+                        <div class="book-cover" id="bookCover">
                             <i class="fas fa-book" style="font-size: 2rem;"></i>
                         </div>
                         <div class="book-info">
@@ -756,7 +905,8 @@ if (!isset($_SESSION['csrf_token'])) {
                                              data-email="${member.email}"
                                              data-member-id="${member.user_id}"
                                              data-type="${member.role}"
-                                             data-status="${member.status}">
+                                             data-status="${member.status}"
+                                             data-profile-image="${member.profile_image || ''}">
                                             <h4>${member.name}</h4>
                                             <p>${member.email} | ${member.user_id} | ${member.role}</p>
                                         </div>
@@ -781,6 +931,7 @@ if (!isset($_SESSION['csrf_token'])) {
             $(document).on('click', '#memberResults .search-result-item[data-id]', function() {
                 const $item = $(this);
                 const memberId = $item.data('id');
+                const profileImage = $item.data('profile-image');
                 
                 // Store the member status
                 currentMemberStatus = $item.data('status') || '';
@@ -812,11 +963,44 @@ if (!isset($_SESSION['csrf_token'])) {
                     $statusEl.html(`<i class="fas fa-times-circle"></i> Inactive`);
                 }
                 
+                // Update member avatar
+                const $avatar = $('#memberAvatar');
+                if (profileImage && profileImage !== '') {
+                    // Check if the image file exists
+                    $.get(`../${profileImage}`)
+                        .done(function() {
+                            $avatar.html(`<img src="../${profileImage}" alt="Profile" style="width: 100%; height: 100%; object-fit: cover;">`);
+                        })
+                        .fail(function() {
+                            // If image doesn't exist, show initials
+                            const nameParts = $item.data('name').split(' ');
+                            let initials = '';
+                            for (let i = 0; i < Math.min(nameParts.length, 2); i++) {
+                                initials += nameParts[i].charAt(0).toUpperCase();
+                            }
+                            $avatar.html(`<div style="display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; background: #3498db; color: white; font-weight: bold; font-size: 1.2rem;">${initials}</div>`);
+                        });
+                } else {
+                    // Show initials fallback
+                    const nameParts = $item.data('name').split(' ');
+                    let initials = '';
+                    for (let i = 0; i < Math.min(nameParts.length, 2); i++) {
+                        initials += nameParts[i].charAt(0).toUpperCase();
+                    }
+                    $avatar.html(`<div style="display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; background: #3498db; color: white; font-weight: bold; font-size: 1.2rem;">${initials}</div>`);
+                }
+                
                 // Show the member info section
                 $('#memberInfo').fadeIn();
                 
                 // Enable book search
                 $('#bookSearch').prop('disabled', false);
+                
+                // Trigger book search if there's already text in the book search field
+                const bookSearchTerm = $('#bookSearch').val().trim();
+                if (bookSearchTerm.length >= 2) {
+                    $('#bookSearch').trigger('input');
+                }
             });
             
             // Book search functionality
@@ -831,13 +1015,23 @@ if (!isset($_SESSION['csrf_token'])) {
                 }
                 
                 bookSearchTimeout = setTimeout(() => {
+                    // Get current member ID
+                    const memberId = $('#memberId').val();
+                    
+                    const requestData = {
+                        action: 'search_books',
+                        term: searchTerm
+                    };
+                    
+                    // Add member ID if available
+                    if (memberId) {
+                        requestData.member_id = memberId;
+                    }
+                    
                     $.ajax({
                         type: 'GET',
                         url: 'process_borrowing.php',
-                        data: {
-                            action: 'search_books',
-                            term: searchTerm
-                        },
+                        data: requestData,
                         dataType: 'json',
                         success: function(response) {
                             console.log('Book search response:', response);
@@ -846,9 +1040,15 @@ if (!isset($_SESSION['csrf_token'])) {
                             
                             if (response && response.length > 0) {
                                 response.forEach(book => {
-                                    const availableText = book.available > 0 
-                                        ? `<span style="color: #155724;">Available (${book.available} of ${book.quantity})</span>`
-                                        : '<span style="color: #721c24;">Not Available</span>';
+                                    // Determine availability text
+                                    let availableText;
+                                    if (book.has_reservation && book.reservation_status === 'approved') {
+                                        availableText = `<span style="color: #155724;">Reserved for this member</span>`;
+                                    } else if (book.available > 0) {
+                                        availableText = `<span style="color: #155724;">Available (${book.available} of ${book.quantity})</span>`;
+                                    } else {
+                                        availableText = '<span style="color: #721c24;">Not Available</span>';
+                                    }
                                         
                                     $results.append(`
                                         <div class="search-result-item" 
@@ -859,7 +1059,10 @@ if (!isset($_SESSION['csrf_token'])) {
                                              data-category="${book.category_name || 'N/A'}"
                                              data-year="${book.publication_year || ''}"
                                              data-available="${book.available}"
-                                             data-total="${book.quantity}">
+                                             data-total="${book.quantity}"
+                                             data-has-reservation="${book.has_reservation || false}"
+                                             data-reservation-status="${book.reservation_status || ''}"
+                                             data-cover-image="${book.cover_image || ''}">
                                             <h4>${book.title}</h4>
                                             <p>${book.author} | ${book.isbn} | ${availableText}</p>
                                         </div>
@@ -884,6 +1087,9 @@ if (!isset($_SESSION['csrf_token'])) {
             $(document).on('click', '#bookResults .search-result-item[data-id]', function() {
                 const $item = $(this);
                 const bookId = $item.data('id');
+                const coverImage = $item.data('cover-image');
+                const hasReservation = $item.data('has-reservation');
+                const reservationStatus = $item.data('reservation-status');
                 
                 // Update hidden input
                 $('#bookId').val(bookId);
@@ -907,14 +1113,36 @@ if (!isset($_SESSION['csrf_token'])) {
                 const $availability = $('#bookAvailability');
                 
                 $availability.removeClass('status-active status-inactive');
-                if (available > 0) {
-                    $availability.html(`<i class="fas fa-check-circle"></i> Available (${available} of ${total} copies)`);
-                    $availability.addClass('status-active');
+                if (available > 0 || (hasReservation && reservationStatus === 'approved')) {
+                    if (hasReservation && reservationStatus === 'approved') {
+                        $availability.html(`<i class="fas fa-check-circle"></i> Reserved for this member`);
+                        $availability.addClass('status-active');
+                    } else {
+                        $availability.html(`<i class="fas fa-check-circle"></i> Available (${available} of ${total} copies)`);
+                        $availability.addClass('status-active');
+                    }
                     $('#submitBorrow').prop('disabled', false);
                 } else {
                     $availability.html('<i class="fas fa-times-circle"></i> Not available for borrowing');
                     $availability.addClass('status-inactive');
                     $('#submitBorrow').prop('disabled', true);
+                }
+                
+                // Update book cover
+                const $cover = $('#bookCover');
+                if (coverImage && coverImage !== '') {
+                    // Check if the image file exists
+                    $.get(`../uploads/books/${coverImage}`)
+                        .done(function() {
+                            $cover.html(`<img src="../uploads/books/${coverImage}" alt="Cover" style="width: 100%; height: 100%; object-fit: cover;">`);
+                        })
+                        .fail(function() {
+                            // If image doesn't exist, show book icon
+                            $cover.html(`<i class="fas fa-book" style="font-size: 2rem;"></i>`);
+                        });
+                } else {
+                    // Show book icon fallback
+                    $cover.html(`<i class="fas fa-book" style="font-size: 2rem;"></i>`);
                 }
                 
                 // Show the book info section
@@ -943,16 +1171,18 @@ if (!isset($_SESSION['csrf_token'])) {
                     return;
                 }
                 
-                // Get the available copies
-                const available = parseInt($('#bookAvailability').data('available') || 0);
-                if (available <= 0) {
+                // Get the current book information
+                const $selectedBookItem = $('#bookResults .search-result-item[data-id="' + $('#bookId').val() + '"]');
+                const available = parseInt($('#bookAvailability').text().match(/Available \((\d+)/)?.[1] || '0');
+                const hasReservation = $('#bookAvailability').text().includes('Reserved for this member');
+                
+                if (available <= 0 && !hasReservation) {
                     alert('This book is not available for borrowing');
                     return;
                 }
                 
-                // Submit the form (in a real implementation, this would be an AJAX call)
-                alert('Borrowing processed successfully!');
-                // this.submit();
+                // Submit the form
+                this.submit();
             });
         });
     </script>

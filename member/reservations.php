@@ -37,6 +37,9 @@ try {
                        WHEN r.status = 'approved' THEN 'Approved'
                        WHEN r.status = 'rejected' THEN 'Rejected'
                        WHEN r.status = 'cancelled' THEN 'Cancelled'
+                       WHEN r.status = 'fulfilled' THEN 'Fulfilled'
+                       WHEN r.status = 'borrowed' THEN 'Borrowed'
+                       WHEN r.status = 'returned' THEN 'Returned'
                        ELSE 'Unknown'
                    END as status_text,
                    CASE 
@@ -44,6 +47,9 @@ try {
                        WHEN r.status = 'approved' THEN 'status-approved'
                        WHEN r.status = 'rejected' THEN 'status-rejected'
                        WHEN r.status = 'cancelled' THEN 'status-cancelled'
+                       WHEN r.status = 'fulfilled' THEN 'status-fulfilled'
+                       WHEN r.status = 'borrowed' THEN 'status-borrowed'
+                       WHEN r.status = 'returned' THEN 'status-returned'
                        ELSE 'status-unknown'
                    END as status_class
             FROM reservations r
@@ -65,6 +71,9 @@ try {
                        WHEN r.status = 'approved' THEN 'Approved'
                        WHEN r.status = 'rejected' THEN 'Rejected'
                        WHEN r.status = 'cancelled' THEN 'Cancelled'
+                       WHEN r.status = 'fulfilled' THEN 'Fulfilled'
+                       WHEN r.status = 'borrowed' THEN 'Borrowed'
+                       WHEN r.status = 'returned' THEN 'Returned'
                        ELSE 'Unknown'
                    END as status_text,
                    CASE 
@@ -72,6 +81,9 @@ try {
                        WHEN r.status = 'approved' THEN 'status-approved'
                        WHEN r.status = 'rejected' THEN 'status-rejected'
                        WHEN r.status = 'cancelled' THEN 'status-cancelled'
+                       WHEN r.status = 'fulfilled' THEN 'status-fulfilled'
+                       WHEN r.status = 'borrowed' THEN 'status-borrowed'
+                       WHEN r.status = 'returned' THEN 'status-returned'
                        ELSE 'status-unknown'
                    END as status_class
             FROM reservations r
@@ -261,6 +273,21 @@ $pageTitle = 'My Reservations';
         .status-cancelled { 
             background: #fafafa; 
             color: #9e9e9e; 
+        }
+        
+        .status-fulfilled { 
+            background: #e3f2fd; 
+            color: #1565c0; 
+        }
+        
+        .status-borrowed { 
+            background: #1e7e34; 
+            color: white; 
+        }
+        
+        .status-returned { 
+            background: #e8f5e9; 
+            color: #2e7d32; 
         }
         
         .text-muted { color: var(--gray-600); }

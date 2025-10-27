@@ -253,8 +253,12 @@ $pageTitle = 'Reservations';
         }
         
         .status-pending { background: #fff3e0; color: #ef6c00; }
-        .status-fulfilled { background: #e8f5e9; color: #2e7d32; }
-        .status-cancelled { background: #ffebee; color: #c62828; }
+        .status-approved { background: #1e7e34; color: white; }
+        .status-rejected { background: #ffebee; color: #c62828; }
+        .status-cancelled { background: #fafafa; color: #9e9e9e; }
+        .status-fulfilled { background: #e3f2fd; color: #1565c0; }
+        .status-borrowed { background: #b2ebf2; color: #00796b; }
+        .status-returned { background: #c8e6c9; color: #2e7d32; }
         
         .text-muted { color: var(--gray-600); }
         .text-danger { color: var(--danger-color); }
@@ -488,7 +492,35 @@ $pageTitle = 'Reservations';
                                             <?php endif; ?>
                                         </td>
                                         <td>
-                                            <span class="status-badge status-pending">
+                                            <?php 
+                                            $statusClass = '';
+                                            switch ($reservation['status']) {
+                                                case 'pending':
+                                                    $statusClass = 'status-pending';
+                                                    break;
+                                                case 'approved':
+                                                    $statusClass = 'status-approved';
+                                                    break;
+                                                case 'rejected':
+                                                    $statusClass = 'status-rejected';
+                                                    break;
+                                                case 'cancelled':
+                                                    $statusClass = 'status-cancelled';
+                                                    break;
+                                                case 'fulfilled':
+                                                    $statusClass = 'status-fulfilled';
+                                                    break;
+                                                case 'borrowed':
+                                                    $statusClass = 'status-borrowed';
+                                                    break;
+                                                case 'returned':
+                                                    $statusClass = 'status-returned';
+                                                    break;
+                                                default:
+                                                    $statusClass = 'status-pending';
+                                            }
+                                            ?>
+                                            <span class="status-badge <?php echo $statusClass; ?>">
                                                 <?php echo ucfirst($reservation['status']); ?>
                                             </span>
                                         </td>
@@ -695,6 +727,7 @@ $pageTitle = 'Reservations';
                 action: 'reject',
                 reservation_id: reservationId,
                 rejection_reason: reason,
+                librarian_notes: reason,  // Also send as librarian_notes for consistency
                 csrf_token: '<?php echo $_SESSION['csrf_token'] ?? ''; ?>'
             })
             .done(function(response) {

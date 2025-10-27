@@ -450,9 +450,6 @@ try {
                     <i class="fas fa-comments fa-3x text-muted mb-3"></i>
                     <h3>No Conversations</h3>
                     <p>You don't have any conversations yet.</p>
-                    <button class="btn btn-primary mt-3" data-bs-toggle="modal" data-bs-target="#composeModal">
-                        <i class="fas fa-plus me-1"></i> Start a Conversation
-                    </button>
                 </div>
             <?php endif; ?>
         </div>
@@ -656,21 +653,43 @@ try {
                 return;
             }
             
-            // Here you would typically make an AJAX call to send the message
-            console.log('Sending message:', {
-                recipient_type: formData.get('recipient_type'),
-                individual_recipient: formData.get('individual_recipient'),
-                subject: formData.get('subject'),
-                message_body: formData.get('message_body')
-            });
+            // Show loading indicator
+            const submitBtn = form.querySelector('button[type="submit"]');
+            const originalText = submitBtn.innerHTML;
+            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Sending...';
+            submitBtn.disabled = true;
             
-            // For now, just show a success message and close the modal
-            showToast('Message sent successfully!', 'success');
-            const modal = bootstrap.Modal.getInstance(document.getElementById('composeModal'));
-            modal.hide();
-            form.reset();
-            selectedMemberId.value = '';
-            selectedMember = null;
+            // Make AJAX request to send the message
+            fetch('send_message.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    showToast(data.error, 'error');
+                } else {
+                    showToast(data.message, 'success');
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('composeModal'));
+                    modal.hide();
+                    form.reset();
+                    selectedMemberId.value = '';
+                    selectedMember = null;
+                    // Reload the page to show the new conversation
+                    setTimeout(() => {
+                        location.reload();
+                    }, 1000);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showToast('Error sending message', 'error');
+            })
+            .finally(() => {
+                // Restore button state
+                submitBtn.innerHTML = originalText;
+                submitBtn.disabled = false;
+            });
         }
         
         // Toast notification function

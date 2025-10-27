@@ -111,6 +111,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $publisherName = trim($_POST['publisher_name'] ?? '');
         $edition = trim($_POST['edition'] ?? '');
         $publicationYear = trim($_POST['publication_year'] ?? '');
+        // Convert empty publication year to NULL
+        $publicationYear = ($publicationYear === '') ? null : (int)$publicationYear;
         $pages = trim($_POST['pages'] ?? '');
         $language = trim($_POST['language'] ?? '');
         $description = trim($_POST['description'] ?? '');

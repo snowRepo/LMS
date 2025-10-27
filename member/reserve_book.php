@@ -98,6 +98,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $notes
         ]);
         
+        // Decrement available copies when reservation is made
+        $stmt = $db->prepare("
+            UPDATE books 
+            SET available_copies = available_copies - 1 
+            WHERE id = ?
+        ");
+        $stmt->execute([$book['id']]);
+        
         // Get member details for notification
         $stmt = $db->prepare("SELECT id, first_name, last_name FROM users WHERE user_id = ?");
         $stmt->execute([$_SESSION['user_id']]);
@@ -126,12 +134,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
         
-        // Update available copies
-        $db->prepare("
-            UPDATE books 
-            SET available_copies = available_copies - 1 
-            WHERE id = ?
-        ")->execute([$book['id']]);
+        // NOTE: We no longer decrement available copies here
+        // Available copies will be decremented only when reservation is approved
         
         $db->commit();
         

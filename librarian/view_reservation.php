@@ -35,28 +35,24 @@ $success = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     $action = $_POST['action'];
     $notes = filter_input(INPUT_POST, 'librarian_notes', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
-    $rejectionReason = filter_input(INPUT_POST, 'rejection_reason', FILTER_SANITIZE_FULL_SPECIAL_CHARS);
     
     try {
         if ($action === 'approve') {
             $reservationService->approve($reservationId, $_SESSION['user_id'], $notes);
-            $success = 'Reservation approved successfully!';
+            $toastMessage = 'Reservation approved successfully!';
+            $toastType = 'success';
         } elseif ($action === 'reject') {
-            if (empty($rejectionReason)) {
-                throw new Exception('Please provide a reason for rejection');
-            }
-            $reservationService->reject($reservationId, $_SESSION['user_id'], $rejectionReason);
-            $success = 'Reservation rejected successfully!';
+            // For rejection, we'll save the notes to rejection_reason column
+            $reservationService->reject($reservationId, $_SESSION['user_id'], $notes);
+            $toastMessage = 'Reservation rejected successfully!';
+            $toastType = 'success';
         } else {
             throw new Exception('Invalid action');
         }
         
-        // Redirect to prevent form resubmission
-        header('Location: view_reservation.php?id=' . $reservationId . '&success=' . urlencode($success));
-        exit;
-        
     } catch (Exception $e) {
-        $error = 'Error: ' . $e->getMessage();
+        $toastMessage = 'Error: ' . $e->getMessage();
+        $toastType = 'error';
     }
 }
 
@@ -90,6 +86,7 @@ if (isset($_GET['success'])) {
     
     <!-- Include CSS -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="css/toast.css">
     
     <style>
         * {
@@ -286,14 +283,19 @@ if (isset($_GET['success'])) {
             color: #1565c0; 
         }
         
-        .status-expired { 
-            background: #ffecb3; 
-            color: #ff8f00; 
-        }
-        
         .status-cancelled { 
             background: #fafafa; 
             color: #9e9e9e; 
+        }
+        
+        .status-borrowed { 
+            background: #b2ebf2; 
+            color: #00796b; 
+        }
+        
+        .status-returned { 
+            background: #c8e6c9; 
+            color: #2e7d32; 
         }
         
         .notes-section {
@@ -440,19 +442,6 @@ if (isset($_GET['success'])) {
             <i class="fas fa-arrow-left"></i> Back to Reservations
         </a>
         
-        <!-- Success/Error Messages -->
-        <?php if ($success): ?>
-            <div style="background: #d4edda; border: 1px solid #c3e6cb; color: #155724; padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.5rem;">
-                <i class="fas fa-check-circle"></i> <?php echo htmlspecialchars($success); ?>
-            </div>
-        <?php endif; ?>
-        
-        <?php if ($error): ?>
-            <div style="background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.5rem;">
-                <i class="fas fa-exclamation-circle"></i> <?php echo htmlspecialchars($error); ?>
-            </div>
-        <?php endif; ?>
-        
         <div class="content-card">
             <div class="reservation-details-container">
                 <div class="book-cover">
@@ -520,6 +509,14 @@ if (isset($_GET['success'])) {
                                         $statusClass = 'status-fulfilled';
                                         $statusText = 'Fulfilled';
                                         break;
+                                    case 'borrowed':
+                                        $statusClass = 'status-borrowed';
+                                        $statusText = 'Borrowed';
+                                        break;
+                                    case 'returned':
+                                        $statusClass = 'status-returned';
+                                        $statusText = 'Returned';
+                                        break;
                                     case 'expired':
                                         $statusClass = 'status-expired';
                                         $statusText = 'Expired';
@@ -557,6 +554,17 @@ if (isset($_GET['success'])) {
                             <div class="info-row">
                                 <div class="info-label">Phone:</div>
                                 <div class="info-value"><?php echo htmlspecialchars($reservation['member_phone']); ?></div>
+                            </div>
+                        <?php endif; ?>
+                        
+                        <?php if (!empty($reservation['notes'])): ?>
+                            <div class="notes-section" style="border-left-color: #3498db;">
+                                <div class="notes-header">
+                                    <i class="fas fa-sticky-note"></i> Member Notes
+                                </div>
+                                <div class="notes-content">
+                                    <?php echo nl2br(htmlspecialchars($reservation['notes'])); ?>
+                                </div>
                             </div>
                         <?php endif; ?>
                         
@@ -600,39 +608,22 @@ if (isset($_GET['success'])) {
                                         <i class="fas fa-check"></i> Approve Reservation
                                     </button>
                                     
-                                    <button type="button" class="btn btn-danger" id="showRejectForm">
+                                    <button type="submit" name="action" value="reject" class="btn btn-danger">
                                         <i class="fas fa-times"></i> Reject Reservation
                                     </button>
-                                </div>
-                                
-                                <div id="rejectForm" class="rejection-reason">
-                                    <div class="form-group">
-                                        <label for="rejection_reason" class="form-label">Reason for Rejection <span style="color: #e74c3c;">*</span>:</label>
-                                        <textarea name="rejection_reason" id="rejection_reason" class="form-control" rows="3" 
-                                            required placeholder="Please provide a reason for rejecting this reservation..."></textarea>
-                                    </div>
-                                    <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
-                                        <button type="submit" class="btn btn-danger">
-                                            <i class="fas fa-times"></i> Confirm Rejection
-                                        </button>
-                                        <button type="button" id="cancelReject" class="btn btn-secondary">
-                                            Cancel
-                                        </button>
-                                    </div>
                                 </div>
                             </form>
                         <?php endif; ?>
                         
                         <?php if ($reservation['status'] === 'approved'): ?>
-                            <button class="btn btn-primary" onclick="markAsFulfilled(<?php echo $reservationId; ?>)">
-                                <i class="fas fa-check-circle"></i> Mark as Fulfilled
-                            </button>
+                            <!-- Removed "Mark as Fulfilled" button as fulfillment is handled automatically during borrowing process -->
                         <?php endif; ?>
                         
-                        <a href="reservations.php" class="btn btn-secondary">
+                        <a href="reservations.php" class="btn btn-primary">
                             <i class="fas fa-list"></i> Back to List
                         </a>
                     </div>
+
                 </div>
             </div>
         </div>
@@ -640,7 +631,81 @@ if (isset($_GET['success'])) {
     
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script>
+        // Toast notification function
+        function showToast(message, type = 'info') {
+            // Create toast container if it doesn't exist
+            let toastContainer = document.getElementById('toast-container');
+            if (!toastContainer) {
+                toastContainer = document.createElement('div');
+                toastContainer.id = 'toast-container';
+                document.body.appendChild(toastContainer);
+                
+                // Add styles for toast container
+                toastContainer.style.position = 'fixed';
+                toastContainer.style.top = '20px';
+                toastContainer.style.right = '20px';
+                toastContainer.style.zIndex = '9999';
+                toastContainer.style.width = '350px';
+                toastContainer.style.maxWidth = 'calc(100% - 40px)';
+            }
+            
+            // Create toast element
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+            
+            // Add icon based on type
+            let icon = 'info-circle';
+            let iconClass = 'toast-icon';
+            if (type === 'success') icon = 'check-circle';
+            if (type === 'error') icon = 'exclamation-circle';
+            if (type === 'warning') icon = 'exclamation-triangle';
+            
+            toast.innerHTML = `
+                <div class="toast-content">
+                    <i class="fas fa-${icon} ${iconClass}"></i>
+                    <div class="toast-message">${message}</div>
+                </div>
+                <button class="toast-close">&times;</button>
+            `;
+            
+            // Add close button event
+            const closeBtn = toast.querySelector('.toast-close');
+            closeBtn.addEventListener('click', function() {
+                toast.classList.add('hide');
+                setTimeout(() => {
+                    if (toast.parentNode) {
+                        toast.parentNode.removeChild(toast);
+                    }
+                }, 300);
+            });
+            
+            // Add toast to container
+            toastContainer.appendChild(toast);
+            
+            // Trigger animation
+            setTimeout(() => {
+                toast.classList.add('show');
+            }, 10);
+            
+            // Auto remove after 5 seconds
+            setTimeout(() => {
+                if (toast.parentNode) {
+                    toast.classList.add('hide');
+                    setTimeout(() => {
+                        if (toast.parentNode) {
+                            toast.parentNode.removeChild(toast);
+                        }
+                    }, 300);
+                }
+            }, 5000);
+        }
+        
         $(document).ready(function() {
+            // Show toast message if there is one from server-side processing
+            <?php if (!empty($toastMessage)): ?>
+                showToast('<?php echo addslashes($toastMessage); ?>', '<?php echo $toastType; ?>');
+            <?php endif; ?>
+            
             // Show/hide rejection form
             $('#showRejectForm').on('click', function() {
                 $('#rejectForm').addClass('show');
@@ -654,22 +719,7 @@ if (isset($_GET['success'])) {
         });
         
         function markAsFulfilled(reservationId) {
-            if (confirm('Mark this reservation as fulfilled? This cannot be undone.')) {
-                $.post('ajax_fulfill_reservation.php', {
-                    reservation_id: reservationId,
-                    csrf_token: '<?php echo $_SESSION['csrf_token'] ?? ''; ?>'
-                })
-                .done(function(response) {
-                    if (response.success) {
-                        location.reload();
-                    } else {
-                        alert('Error: ' + (response.error || 'Unknown error occurred'));
-                    }
-                })
-                .fail(function() {
-                    alert('Error: Failed to update reservation status');
-                });
-            }
+            // Removed as fulfillment is handled automatically during borrowing process
         }
     </script>
 </body>
