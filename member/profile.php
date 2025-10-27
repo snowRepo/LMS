@@ -66,6 +66,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_profile'])) {
     $address = $_POST['address'] ?? '';
     $dateOfBirth = $_POST['date_of_birth'] ?? '';
     
+    // Handle empty date of birth
+    if (empty($dateOfBirth)) {
+        $dateOfBirth = null;
+    }
+    
     // Validate email
     if (!empty($email) && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
         // Set error message in session for toast notification
@@ -88,7 +93,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_profile'])) {
             $_SESSION['email'] = $email;
             $_SESSION['phone'] = $phone;
             $_SESSION['address'] = $address;
-            $_SESSION['date_of_birth'] = $dateOfBirth;
+            $_SESSION['date_of_birth'] = $dateOfBirth ?? '';
             
             // Set success message in session for toast notification
             $_SESSION['toast_message'] = 'Profile updated successfully!';
