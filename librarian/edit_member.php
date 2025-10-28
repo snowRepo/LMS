@@ -55,40 +55,39 @@ try {
     
     // Handle form submission
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-        // Get form data
-        $firstName = trim($_POST['first_name']);
-        $lastName = trim($_POST['last_name']);
+        // Get form data (first name, last name, username are read-only now)
+        $firstName = $member['first_name']; // Keep existing value
+        $lastName = $member['last_name'];   // Keep existing value
+        $username = $member['username'];    // Keep existing value
         $email = trim($_POST['email']);
         $phone = trim($_POST['phone']);
-        $username = trim($_POST['username']);
         $address = trim($_POST['address']);
+        $dateOfBirth = !empty($_POST['date_of_birth']) ? trim($_POST['date_of_birth']) : null;
         $status = trim($_POST['status']);
         
         // Validate required fields
-        if (empty($firstName) || empty($lastName) || empty($email) || empty($username)) {
+        if (empty($email)) {
             $error = "Please fill in all required fields.";
         } else {
-            // Check if email or username already exists (excluding current user)
-            $stmt = $db->prepare("SELECT id FROM users WHERE (email = ? OR username = ?) AND user_id != ?");
-            $stmt->execute([$email, $username, $userId]);
+            // Check if email already exists (excluding current user)
+            $stmt = $db->prepare("SELECT id FROM users WHERE email = ? AND user_id != ?");
+            $stmt->execute([$email, $userId]);
             if ($stmt->fetch()) {
-                $error = "Another member with this email or username already exists.";
+                $error = "Another member with this email already exists.";
             } else {
                 // Update member
                 $stmt = $db->prepare("
                     UPDATE users 
-                    SET first_name = ?, last_name = ?, email = ?, phone = ?, username = ?, 
-                        address = ?, status = ?, updated_at = NOW()
+                    SET email = ?, phone = ?, address = ?, date_of_birth = ?, 
+                        status = ?, updated_at = NOW()
                     WHERE user_id = ? AND library_id = ?
                 ");
                 
                 $result = $stmt->execute([
-                    $firstName, 
-                    $lastName, 
                     $email, 
                     $phone, 
-                    $username, 
                     $address, 
+                    $dateOfBirth,
                     $status,
                     $userId, 
                     $libraryId
@@ -350,13 +349,13 @@ try {
                         <div class="form-group">
                             <label for="first_name">First Name *</label>
                             <input type="text" id="first_name" name="first_name" class="form-control" 
-                                   value="<?php echo htmlspecialchars($member['first_name'] ?? ''); ?>" required>
+                                   value="<?php echo htmlspecialchars($member['first_name'] ?? ''); ?>" readonly>
                         </div>
                         
                         <div class="form-group">
                             <label for="last_name">Last Name *</label>
                             <input type="text" id="last_name" name="last_name" class="form-control" 
-                                   value="<?php echo htmlspecialchars($member['last_name'] ?? ''); ?>" required>
+                                   value="<?php echo htmlspecialchars($member['last_name'] ?? ''); ?>" readonly>
                         </div>
                     </div>
                     
@@ -378,7 +377,7 @@ try {
                         <div class="form-group">
                             <label for="username">Username *</label>
                             <input type="text" id="username" name="username" class="form-control" 
-                                   value="<?php echo htmlspecialchars($member['username'] ?? ''); ?>" required>
+                                   value="<?php echo htmlspecialchars($member['username'] ?? ''); ?>" readonly>
                         </div>
                         
                         <div class="form-group">
@@ -394,9 +393,17 @@ try {
                         </div>
                     </div>
                     
-                    <div class="form-group">
-                        <label for="address">Address</label>
-                        <textarea id="address" name="address" class="form-control" rows="3"><?php echo htmlspecialchars($member['address'] ?? ''); ?></textarea>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="address">Address</label>
+                            <textarea id="address" name="address" class="form-control" rows="3"><?php echo htmlspecialchars($member['address'] ?? ''); ?></textarea>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="date_of_birth">Date of Birth</label>
+                            <input type="date" id="date_of_birth" name="date_of_birth" class="form-control" 
+                                   value="<?php echo !empty($member['date_of_birth']) ? htmlspecialchars($member['date_of_birth']) : ''; ?>">
+                        </div>
                     </div>
                 </div>
                 

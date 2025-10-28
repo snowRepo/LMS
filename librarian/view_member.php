@@ -53,22 +53,31 @@ try {
         exit;
     }
     
+    // Get the integer ID of the member for attendance table
+    $memberIntegerId = $member['id'];
+    
     // Get library name
     $stmt = $db->prepare("SELECT library_name FROM libraries WHERE id = ?");
     $stmt->execute([$libraryId]);
     $library = $stmt->fetch();
     $member['library_name'] = $library ? $library['library_name'] : 'Unknown Library';
     
-    // Get attendance history for the member (last 30 days)
+    // Get attendance history for the member (last 30 days) with time information
     $stmt = $db->prepare("
-        SELECT attendance_date 
+        SELECT attendance_date, arrival_time, departure_time
         FROM attendance 
         WHERE user_id = ? AND library_id = ? 
         AND attendance_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
         ORDER BY attendance_date DESC
     ");
-    $stmt->execute([$userId, $libraryId]);
-    $attendanceHistory = $stmt->fetchAll(PDO::FETCH_COLUMN);
+    $stmt->execute([$memberIntegerId, $libraryId]);
+    $attendanceHistory = $stmt->fetchAll();
+    
+    // Create associative array for quick lookup by date
+    $attendanceLookup = [];
+    foreach ($attendanceHistory as $record) {
+        $attendanceLookup[$record['attendance_date']] = $record;
+    }
     
     $pageTitle = 'Member Details - ' . $member['first_name'] . ' ' . $member['last_name'];
 } catch (Exception $e) {
@@ -368,12 +377,18 @@ try {
             
             <div class="member-details-container">
                 <div class="member-avatar">
-                    <div class="member-avatar-img">
-                        <?php 
-                        $initials = substr($member['first_name'], 0, 1) . substr($member['last_name'], 0, 1);
-                        echo strtoupper($initials);
-                        ?>
-                    </div>
+                    <?php 
+                    // Display profile image if available, otherwise show initials
+                    if (!empty($member['profile_image']) && file_exists('../' . $member['profile_image'])): ?>
+                        <img src="../<?php echo htmlspecialchars($member['profile_image']); ?>" 
+                             alt="<?php echo htmlspecialchars($member['full_name']); ?>" 
+                             style="width: 200px; height: 200px; border-radius: 50%; object-fit: cover; box-shadow: 0 4px 12px rgba(52, 152, 219, 0.2); margin: 0 auto; border: 5px solid white;">
+                    <?php else: 
+                        $initials = substr($member['first_name'], 0, 1) . substr($member['last_name'], 0, 1); ?>
+                        <div class="member-avatar-img">
+                            <?php echo strtoupper($initials); ?>
+                        </div>
+                    <?php endif; ?>
                 </div>
                 
                 <div class="member-info">
@@ -395,6 +410,11 @@ try {
                     <div class="info-group">
                         <div class="info-label">Phone Number</div>
                         <div class="info-value"><?php echo !empty($member['phone']) ? htmlspecialchars($member['phone']) : 'N/A'; ?></div>
+                    </div>
+                    
+                    <div class="info-group">
+                        <div class="info-label">Date of Birth</div>
+                        <div class="info-value"><?php echo !empty($member['date_of_birth']) ? date('M j, Y', strtotime($member['date_of_birth'])) : 'N/A'; ?></div>
                     </div>
                     
                     <div class="info-group">
@@ -457,14 +477,40 @@ try {
                     $currentDate = clone $startDate;
                     while ($currentDate <= $endDate) {
                         $dateStr = $currentDate->format('Y-m-d');
-                        $isPresent = in_array($dateStr, $attendanceHistory);
                         $isFuture = $currentDate > $today;
                         
                         if ($isFuture) {
                             echo '<div class="attendance-day empty">-</div>';
                         } else {
-                            $class = $isPresent ? 'present' : 'absent';
-                            echo '<div class="attendance-day ' . $class . '">' . $currentDate->format('j') . '</div>';
+                            // Check if there's an attendance record for this date
+                            $attendanceRecord = isset($attendanceLookup[$dateStr]) ? $attendanceLookup[$dateStr] : null;
+                            $isPresent = $attendanceRecord !== null;
+                            
+                            if ($isPresent) {
+                                // Handle backward compatibility: if there's a record but no times, consider it present
+                                $hasArrivalTime = !empty($attendanceRecord['arrival_time']) || 
+                                                (!$attendanceRecord['arrival_time'] && !$attendanceRecord['departure_time']);
+                                $hasDepartureTime = !empty($attendanceRecord['departure_time']);
+                                
+                                if ($hasArrivalTime && $hasDepartureTime) {
+                                    // Complete attendance with both arrival and departure
+                                    echo '<div class="attendance-day present" title="Arrival: ' . date('g:i A', strtotime($attendanceRecord['arrival_time'])) . ', Departure: ' . date('g:i A', strtotime($attendanceRecord['departure_time'])) . '">' . $currentDate->format('j') . '</div>';
+                                } else if ($hasArrivalTime) {
+                                    // Check-in only
+                                    if (!empty($attendanceRecord['arrival_time'])) {
+                                        echo '<div class="attendance-day present" title="Arrival: ' . date('g:i A', strtotime($attendanceRecord['arrival_time'])) . '">●' . $currentDate->format('j') . '</div>';
+                                    } else {
+                                        // Old record without time
+                                        echo '<div class="attendance-day present" title="Present (time not recorded)">' . $currentDate->format('j') . '</div>';
+                                    }
+                                } else {
+                                    // Only departure time (shouldn't happen but handle gracefully)
+                                    echo '<div class="attendance-day present" title="Departure: ' . date('g:i A', strtotime($attendanceRecord['departure_time'])) . '">' . $currentDate->format('j') . '</div>';
+                                }
+                            } else {
+                                // Absent
+                                echo '<div class="attendance-day absent">' . $currentDate->format('j') . '</div>';
+                            }
                         }
                         
                         $currentDate->add(new DateInterval('P1D'));

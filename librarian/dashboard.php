@@ -488,34 +488,34 @@ $pageTitle = 'Librarian Dashboard';
                 </div>
                 
                 <div class="quick-links-grid">
-                    <a href="add_book.php" class="quick-link">
+                    <a href="books.php" class="quick-link">
                         <i class="fas fa-plus-circle"></i>
                         <span>Add Book</span>
                     </a>
                     
-                    <a href="add_member.php" class="quick-link">
+                    <a href="members.php" class="quick-link">
                         <i class="fas fa-user-plus"></i>
                         <span>Add Member</span>
                     </a>
                     
-                    <a href="borrow_book.php" class="quick-link">
-                        <i class="fas fa-hand-holding"></i>
+                    <a href="process_borrowing.php" class="quick-link">
+                        <i class="fas fa-exchange-alt"></i>
                         <span>Borrow Book</span>
                     </a>
                     
-                    <a href="return_book.php" class="quick-link">
-                        <i class="fas fa-undo"></i>
-                        <span>Return Book</span>
+                    <a href="borrowing.php" class="quick-link">
+                        <i class="fas fa-tasks"></i>
+                        <span>Manage Borrowing</span>
                     </a>
                     
-                    <a href="reports.php" class="quick-link">
-                        <i class="fas fa-chart-bar"></i>
-                        <span>Reports</span>
+                    <a href="profile.php" class="quick-link">
+                        <i class="fas fa-user-cog"></i>
+                        <span>Profile Settings</span>
                     </a>
                     
-                    <a href="settings.php" class="quick-link">
-                        <i class="fas fa-cog"></i>
-                        <span>Settings</span>
+                    <a href="reservations.php" class="quick-link">
+                        <i class="fas fa-calendar-check"></i>
+                        <span>Reservations</span>
                     </a>
                 </div>
             </div>

@@ -98,8 +98,38 @@ if (DEBUG_MODE) {
 if (env('APP_TIMEZONE')) {
     date_default_timezone_set(env('APP_TIMEZONE'));
 } else {
-    date_default_timezone_set('America/New_York');
+    // Default to UTC if no timezone is set
+    date_default_timezone_set('UTC');
 }
+
+// Function to set user timezone if provided
+function setUserTimezone($timezone = null) {
+    if ($timezone && in_array($timezone, timezone_identifiers_list())) {
+        date_default_timezone_set($timezone);
+        if (session_status() == PHP_SESSION_NONE) {
+            session_start();
+        }
+        $_SESSION['user_timezone'] = $timezone;
+        return true;
+    }
+    return false;
+}
+
+// Set timezone from session if available
+function initializeUserTimezone() {
+    if (session_status() == PHP_SESSION_NONE) {
+        session_start();
+    }
+    if (isset($_SESSION['user_timezone']) && !empty($_SESSION['user_timezone'])) {
+        $timezone = $_SESSION['user_timezone'];
+        if (in_array($timezone, timezone_identifiers_list())) {
+            date_default_timezone_set($timezone);
+        }
+    }
+}
+
+// Initialize timezone on each request
+initializeUserTimezone();
 
 // Database Connection Class
 class Database {

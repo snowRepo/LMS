@@ -1,6 +1,9 @@
 <?php
 define('LMS_ACCESS', true);
 
+// Set the default timezone to match your system
+date_default_timezone_set('Africa/Accra'); // Change this to your actual timezone
+
 // Load configuration
 require_once '../includes/EnvLoader.php';
 EnvLoader::load();
@@ -53,16 +56,19 @@ try {
         exit;
     }
     
-    // Get attendance history for the member (last 30 days)
+    // Get the integer ID of the member for attendance table
+    $memberIntegerId = $member['id'];
+    
+    // Get attendance history for the member (last 30 days) with time information
     $stmt = $db->prepare("
-        SELECT attendance_date 
+        SELECT attendance_date, arrival_time, departure_time
         FROM attendance 
         WHERE user_id = ? AND library_id = ? 
         AND attendance_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
         ORDER BY attendance_date DESC
     ");
-    $stmt->execute([$userId, $libraryId]);
-    $attendanceHistory = $stmt->fetchAll(PDO::FETCH_COLUMN);
+    $stmt->execute([$memberIntegerId, $libraryId]);
+    $attendanceHistory = $stmt->fetchAll();
     
     $pageTitle = 'Attendance History';
 } catch (Exception $e) {
@@ -188,19 +194,13 @@ try {
             background: #e0a800;
         }
 
-        .form-row {
-            display: flex;
-            gap: 1rem;
-            margin-top: 2rem;
-        }
-
         .member-info {
             display: flex;
             align-items: center;
             gap: 1rem;
-            margin-bottom: 1.5rem;
+            margin-bottom: 2rem;
             padding: 1rem;
-            background-color: #f8f9fa;
+            background: #f8f9fa;
             border-radius: 8px;
         }
 
@@ -214,17 +214,12 @@ try {
             justify-content: center;
             color: white;
             font-weight: bold;
-            font-size: 1.2rem;
-        }
-
-        .member-details {
-            flex: 1;
+            font-size: 1.5rem;
         }
 
         .member-details h3 {
             margin: 0 0 0.25rem 0;
             color: #495057;
-            font-size: 1.1rem;
         }
 
         .member-details p {
@@ -233,91 +228,62 @@ try {
             font-size: 0.9rem;
         }
 
-        .status-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.25rem;
-            padding: 0.25rem 0.75rem;
-            border-radius: 12px;
-            font-size: 0.75rem;
+        .attendance-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+        }
+
+        .attendance-table th,
+        .attendance-table td {
+            padding: 0.75rem;
+            text-align: center;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        .attendance-table th {
+            background-color: #f8f9fa;
+            font-weight: 600;
+            color: #495057;
+        }
+
+        .attendance-table tr:hover {
+            background-color: #f8f9fa;
+        }
+
+        .time-present {
+            color: #28a745;
             font-weight: 500;
         }
 
-        .status-active {
-            background-color: #006400;
-            color: white;
+        .time-missing {
+            color: #dc3545;
         }
 
-        .status-inactive {
-            background-color: #f8d7da;
-            color: #721c24;
-        }
-
-        .status-pending {
-            background-color: #fff3cd;
-            color: #856404;
-        }
-
-        .attendance-calendar {
-            display: grid;
-            grid-template-columns: repeat(7, 1fr);
-            gap: 0.5rem;
-            margin-top: 1rem;
-        }
-
-        .attendance-day {
+        .no-records {
             text-align: center;
-            padding: 0.5rem;
-            border-radius: 4px;
-            font-size: 0.8rem;
-        }
-
-        .attendance-day.present {
-            background-color: #d4edda;
-            color: #155724;
-        }
-
-        .attendance-day.absent {
-            background-color: #f8d7da;
-            color: #721c24;
-        }
-
-        .attendance-day.empty {
-            background-color: #e9ecef;
             color: #6c757d;
+            font-style: italic;
+            padding: 2rem;
         }
 
-        .attendance-day-header {
-            font-weight: bold;
-            text-align: center;
-            padding: 0.5rem;
-            background-color: #f8f9fa;
-            border-radius: 4px;
-        }
-        
-        .attendance-summary {
-            display: flex;
-            gap: 1rem;
-            margin-top: 1rem;
-        }
-        
-        .attendance-summary-item {
-            background-color: #f8f9fa;
-            padding: 1rem;
-            border-radius: 8px;
-            text-align: center;
-            flex: 1;
-        }
-        
-        .attendance-summary-item .number {
-            font-size: 1.5rem;
-            font-weight: bold;
-            color: #3498DB;
-        }
-        
-        .attendance-summary-item .label {
-            font-size: 0.9rem;
-            color: #6c757d;
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+            
+            .content-card {
+                padding: 1rem;
+            }
+            
+            .attendance-table {
+                font-size: 0.9rem;
+            }
+            
+            .attendance-table th,
+            .attendance-table td {
+                padding: 0.5rem;
+            }
         }
     </style>
 </head>
@@ -326,104 +292,147 @@ try {
     
     <div class="container">
         <div class="page-header">
-            <h1><i class="fas fa-calendar-alt"></i> Attendance History</h1>
-            <p>View attendance records for library member</p>
+            <h1><i class="fas fa-history"></i> Attendance History</h1>
+            <p>View <?php echo htmlspecialchars($member['full_name']); ?>'s attendance records</p>
         </div>
 
         <div class="content-card">
             <div class="card-header">
                 <h2>Attendance Records</h2>
-                <div>
-                    <a href="attendance_report.php?user_id=<?php echo urlencode($member['user_id']); ?>" class="btn btn-primary">
-                        <i class="fas fa-file-alt"></i>
-                        Detailed Report
-                    </a>
-                    <a href="mark_attendance.php?user_id=<?php echo urlencode($member['user_id']); ?>" class="btn btn-primary">
-                        <i class="fas fa-calendar-check"></i>
-                        Mark Attendance
-                    </a>
-                    <a href="members.php" class="btn btn-secondary">
-                        <i class="fas fa-arrow-left"></i>
-                        Back to Members
-                    </a>
-                </div>
+                <a href="mark_attendance.php?user_id=<?php echo urlencode($userId); ?>" class="btn btn-primary">
+                    <i class="fas fa-arrow-left"></i> Back to Mark Attendance
+                </a>
             </div>
             
             <div class="member-info">
                 <div class="member-avatar">
                     <?php 
-                    $initials = substr($member['first_name'], 0, 1) . substr($member['last_name'], 0, 1);
-                    echo strtoupper($initials);
-                    ?>
+                    // Display profile image if available, otherwise show initials
+                    if (!empty($member['profile_image']) && file_exists('../' . $member['profile_image'])): ?>
+                        <img src="../<?php echo htmlspecialchars($member['profile_image']); ?>" 
+                             alt="<?php echo htmlspecialchars($member['full_name']); ?>" 
+                             style="width: 60px; height: 60px; border-radius: 50%; object-fit: cover;">
+                    <?php else: 
+                        $initials = substr($member['first_name'], 0, 1) . substr($member['last_name'], 0, 1); ?>
+                        <div style="width: 60px; height: 60px; border-radius: 50%; background: linear-gradient(135deg, #3498DB 0%, #2980B9 100%); display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 1.5rem;">
+                            <?php echo strtoupper($initials); ?>
+                        </div>
+                    <?php endif; ?>
                 </div>
                 <div class="member-details">
                     <h3><?php echo htmlspecialchars($member['full_name']); ?></h3>
-                    <p>
-                        <span class="status-badge status-<?php echo $member['status']; ?>">
-                            <?php echo ucfirst($member['status']); ?>
-                        </span>
-                    </p>
+                    <p>Email: <?php echo htmlspecialchars($member['email']); ?></p>
+                    <p>Phone: <?php echo htmlspecialchars($member['phone'] ?? 'N/A'); ?></p>
                 </div>
             </div>
             
-            <div class="attendance-summary">
-                <div class="attendance-summary-item">
-                    <div class="number"><?php echo count($attendanceHistory); ?></div>
-                    <div class="label">Days Present</div>
+            <?php if (count($attendanceHistory) > 0): ?>
+                <table class="attendance-table">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Arrival Time</th>
+                            <th>Departure Time</th>
+                            <th>Duration</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($attendanceHistory as $record): ?>
+                            <tr>
+                                <td><?php echo date('M j, Y', strtotime($record['attendance_date'])); ?></td>
+                                <td>
+                                    <?php 
+                                    // Handle backward compatibility: if there's a record but no arrival time,
+                                    // it's an old record that should be considered as "present"
+                                    $hasArrivalTime = !empty($record['arrival_time']);
+                                    if ($hasArrivalTime): ?>
+                                        <span class="time-present"><?php echo date('g:i A', strtotime($record['arrival_time'])); ?></span>
+                                    <?php elseif (!$hasArrivalTime && empty($record['departure_time'])): ?>
+                                        <span class="time-present">Recorded (time not specified)</span>
+                                    <?php else: ?>
+                                        <span class="time-missing">Not recorded</span>
+                                    <?php endif; ?>
+                                </td>
+                                <td>
+                                    <?php 
+                                    // Handle backward compatibility: if there's a record but no departure time,
+                                    // it's either an old record or a check-in without check-out
+                                    $hasDepartureTime = !empty($record['departure_time']);
+                                    if ($hasDepartureTime): ?>
+                                        <span class="time-present"><?php echo date('g:i A', strtotime($record['departure_time'])); ?></span>
+                                    <?php elseif (!$hasDepartureTime && empty($record['arrival_time'])): ?>
+                                        <span class="time-present">Recorded (time not specified)</span>
+                                    <?php else: ?>
+                                        <span class="time-missing">Not recorded</span>
+                                    <?php endif; ?>
+                                </td>
+                                <td>
+                                    <?php 
+                                    // Handle backward compatibility for records without time information
+                                    // If there's a record but no times, it's an old record that should be considered as "present"
+                                    $hasArrivalTime = !empty($record['arrival_time']);
+                                    $hasDepartureTime = !empty($record['departure_time']);
+                                    
+                                    if ($hasArrivalTime && $hasDepartureTime) {
+                                        $arrival = new DateTime($record['arrival_time']);
+                                        $departure = new DateTime($record['departure_time']);
+                                        $interval = $arrival->diff($departure);
+                                        echo $interval->format('%h hrs %i mins');
+                                    } else if ($hasArrivalTime || (!$hasArrivalTime && !$hasDepartureTime)) {
+                                        // Either has arrival time or is an old record (no times at all)
+                                        echo 'In Progress';
+                                    } else {
+                                        echo 'Incomplete';
+                                    }
+                                    ?>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            <?php else: ?>
+                <div class="no-records">
+                    <i class="fas fa-info-circle"></i> No attendance records found for the last 30 days.
                 </div>
-                <div class="attendance-summary-item">
-                    <div class="number"><?php echo 30 - count($attendanceHistory); ?></div>
-                    <div class="label">Days Absent</div>
-                </div>
-                <div class="attendance-summary-item">
-                    <div class="number"><?php echo $attendanceHistory ? round((count($attendanceHistory) / 30) * 100) : 0; ?>%</div>
-                    <div class="label">Attendance Rate</div>
-                </div>
-            </div>
-            
-            <div class="section">
-                <h3>Recent Attendance (Last 30 Days)</h3>
-                <div class="attendance-calendar">
-                    <div class="attendance-day-header">Sun</div>
-                    <div class="attendance-day-header">Mon</div>
-                    <div class="attendance-day-header">Tue</div>
-                    <div class="attendance-day-header">Wed</div>
-                    <div class="attendance-day-header">Thu</div>
-                    <div class="attendance-day-header">Fri</div>
-                    <div class="attendance-day-header">Sat</div>
-                    
-                    <?php
-                    // Generate attendance calendar for the last 30 days
-                    $today = new DateTime();
-                    $startDate = clone $today;
-                    $startDate->sub(new DateInterval('P30D'));
-                    
-                    // Adjust start date to the beginning of the week (Sunday)
-                    $startDate->sub(new DateInterval('P' . $startDate->format('w') . 'D'));
-                    
-                    // Adjust end date to the end of the week (Saturday)
-                    $endDate = clone $today;
-                    $endDate->add(new DateInterval('P' . (6 - $endDate->format('w')) . 'D'));
-                    
-                    $currentDate = clone $startDate;
-                    while ($currentDate <= $endDate) {
-                        $dateStr = $currentDate->format('Y-m-d');
-                        $isPresent = in_array($dateStr, $attendanceHistory);
-                        $isFuture = $currentDate > $today;
-                        
-                        if ($isFuture) {
-                            echo '<div class="attendance-day empty">-</div>';
-                        } else {
-                            $class = $isPresent ? 'present' : 'absent';
-                            echo '<div class="attendance-day ' . $class . '">' . $currentDate->format('j') . '</div>';
-                        }
-                        
-                        $currentDate->add(new DateInterval('P1D'));
-                    }
-                    ?>
-                </div>
-            </div>
+            <?php endif; ?>
         </div>
     </div>
+    <script>
+        // Detect user timezone and send to server
+        document.addEventListener('DOMContentLoaded', function() {
+            // Get user's timezone
+            const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+            
+            // Check if we've already set this timezone to avoid infinite loops
+            const timezoneKey = 'lms_user_timezone';
+            const storedTimezone = localStorage.getItem(timezoneKey);
+            
+            if (storedTimezone !== userTimezone) {
+                // Send timezone to server via AJAX
+                fetch('../includes/set_timezone.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({timezone: userTimezone})
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        console.log('Timezone set to: ' + userTimezone);
+                        // Store the timezone in localStorage to prevent future reloads
+                        localStorage.setItem(timezoneKey, userTimezone);
+                        // Only reload if this is the first time setting the timezone
+                        if (!storedTimezone) {
+                            window.location.reload();
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error('Error setting timezone:', error);
+                });
+            }
+        });
+    </script>
 </body>
 </html>

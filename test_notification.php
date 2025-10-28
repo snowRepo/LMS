@@ -5,30 +5,27 @@ define('LMS_ACCESS', true);
 require_once 'includes/EnvLoader.php';
 EnvLoader::load();
 include 'config/config.php';
-require_once 'includes/NotificationService.php';
 
-// Test notification creation
 try {
+    // Test notification service
+    require_once 'includes/NotificationService.php';
     $notificationService = new NotificationService();
     
-    // Try to create a test notification
-    // Use a known user ID (you'll need to replace this with an actual user ID from your database)
-    $testUserId = 1; // Replace with actual user ID
-    
+    // Create a test notification
     $result = $notificationService->createNotification(
-        $testUserId,
+        'MEM1761278591792',  // Test user ID
         'Test Notification',
-        'This is a test notification to check if the system is working correctly.',
+        'This is a test notification to verify the notification system is working correctly.',
         'info',
-        '/member/reservations.php'
+        '../member/dashboard.php'
     );
     
     if ($result) {
-        echo "Notification created successfully!\n";
+        echo "Notification created successfully!";
     } else {
-        echo "Failed to create notification.\n";
+        echo "Failed to create notification.";
     }
 } catch (Exception $e) {
-    echo "Error: " . $e->getMessage() . "\n";
+    echo "Error: " . $e->getMessage();
 }
 ?>

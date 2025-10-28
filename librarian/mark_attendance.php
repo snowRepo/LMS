@@ -53,45 +53,140 @@ try {
         exit;
     }
     
-    // Check if member is already marked present today
+    // Get the integer ID of the member for attendance table
+    $memberIntegerId = $member['id'];
+    
+    // Check if member has attendance record for today
     $stmt = $db->prepare("
-        SELECT id 
+        SELECT id, arrival_time, departure_time 
         FROM attendance 
         WHERE user_id = ? AND library_id = ? AND attendance_date = CURDATE()
     ");
-    $stmt->execute([$userId, $libraryId]);
-    $isPresentToday = $stmt->fetch();
+    $stmt->execute([$memberIntegerId, $libraryId]);
+    $attendanceRecord = $stmt->fetch();
+    
+    $isPresentToday = $attendanceRecord ? true : false;
+    // Handle backward compatibility: if there's a record but no times, consider it checked in
+    $hasArrivalTime = $attendanceRecord && (!empty($attendanceRecord['arrival_time']) || 
+                      (!$attendanceRecord['arrival_time'] && !$attendanceRecord['departure_time']));
+    $hasDepartureTime = $attendanceRecord && !empty($attendanceRecord['departure_time']);
     
     // Handle form submission
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-        $present = isset($_POST['present']) ? 1 : 0;
+        $action = isset($_POST['action']) ? trim($_POST['action']) : '';
         
-        if ($present) {
-            // Mark member as present
-            $stmt = $db->prepare("
-                INSERT INTO attendance (user_id, library_id, attendance_date) 
-                VALUES (?, ?, ?) 
-                ON DUPLICATE KEY UPDATE attendance_date = VALUES(attendance_date)
-            ");
-            $result = $stmt->execute([$userId, $libraryId, date('Y-m-d')]);
-            
-            if ($result) {
-                $success = 'Attendance marked successfully';
+        if ($action === 'check_in') {
+            // Mark member arrival time
+            if (!$isPresentToday) {
+                // Create new attendance record with arrival time
+                $stmt = $db->prepare("
+                    INSERT INTO attendance (user_id, library_id, attendance_date, arrival_time) 
+                    VALUES (?, ?, ?, ?)
+                ");
+                $result = $stmt->execute([$memberIntegerId, $libraryId, date('Y-m-d'), date('H:i:s')]);
+            } else if (!$hasArrivalTime) {
+                // Update existing record with arrival time
+                $stmt = $db->prepare("
+                    UPDATE attendance 
+                    SET arrival_time = ? 
+                    WHERE id = ?
+                ");
+                $result = $stmt->execute([date('H:i:s'), $attendanceRecord['id']]);
             } else {
-                $error = 'Failed to mark attendance';
+                $error = 'Member already checked in today';
+                $result = false;
             }
-        } else {
-            // Remove attendance record
-            $stmt = $db->prepare("
-                DELETE FROM attendance 
-                WHERE user_id = ? AND library_id = ? AND attendance_date = ?
-            ");
-            $result = $stmt->execute([$userId, $libraryId, date('Y-m-d')]);
             
             if ($result) {
-                $success = 'Attendance record removed';
+                // Send notification to member about check-in
+                require_once '../includes/NotificationService.php';
+                $notificationService = new NotificationService();
+                
+                $notificationTitle = "Check-in Recorded";
+                $notificationMessage = "Your arrival time has been recorded as " . date('g:i A') . " today (" . date('F j, Y') . ") by the librarian.";
+                
+                $notificationService->createNotification(
+                    $userId,  // user_id string for notification service
+                    $notificationTitle,
+                    $notificationMessage,
+                    'info',  // type
+                    '../member/dashboard.php'  // action URL
+                );
+                
+                // Redirect with success message
+                header('Location: mark_attendance.php?user_id=' . urlencode($userId) . '&success=' . urlencode('Check-in time recorded successfully'));
+                exit;
+            } else if (!isset($error)) {
+                // Redirect with error message
+                header('Location: mark_attendance.php?user_id=' . urlencode($userId) . '&error=' . urlencode('Failed to record check-in time'));
+                exit;
+            }
+        } else if ($action === 'check_out') {
+            // Mark member departure time
+            if ($isPresentToday && $hasArrivalTime && !$hasDepartureTime) {
+                // Update existing record with departure time
+                $stmt = $db->prepare("
+                    UPDATE attendance 
+                    SET departure_time = ? 
+                    WHERE id = ?
+                ");
+                $result = $stmt->execute([date('H:i:s'), $attendanceRecord['id']]);
+                
+                if ($result) {
+                    // Send notification to member about check-out
+                    require_once '../includes/NotificationService.php';
+                    $notificationService = new NotificationService();
+                    
+                    $notificationTitle = "Check-out Recorded";
+                    $notificationMessage = "Your departure time has been recorded as " . date('g:i A') . " today (" . date('F j, Y') . ") by the librarian.";
+                    
+                    $notificationService->createNotification(
+                        $userId,  // user_id string for notification service
+                        $notificationTitle,
+                        $notificationMessage,
+                        'info',  // type
+                        '../member/dashboard.php'  // action URL
+                    );
+                    
+                    // Redirect with success message
+                    header('Location: mark_attendance.php?user_id=' . urlencode($userId) . '&success=' . urlencode('Check-out time recorded successfully'));
+                    exit;
+                } else {
+                    // Redirect with error message
+                    header('Location: mark_attendance.php?user_id=' . urlencode($userId) . '&error=' . urlencode('Failed to record check-out time'));
+                    exit;
+                }
+            } else if (!$isPresentToday || !$hasArrivalTime) {
+                // Redirect with error message
+                header('Location: mark_attendance.php?user_id=' . urlencode($userId) . '&error=' . urlencode('Member must check in before checking out'));
+                exit;
+            } else if ($hasDepartureTime) {
+                // Redirect with error message
+                header('Location: mark_attendance.php?user_id=' . urlencode($userId) . '&error=' . urlencode('Member already checked out today'));
+                exit;
+            }
+        } else if ($action === 'reset') {
+            // Reset attendance record for the day
+            if ($isPresentToday) {
+                $stmt = $db->prepare("
+                    DELETE FROM attendance 
+                    WHERE id = ?
+                ");
+                $result = $stmt->execute([$attendanceRecord['id']]);
+                
+                if ($result) {
+                    // Redirect with success message
+                    header('Location: mark_attendance.php?user_id=' . urlencode($userId) . '&success=' . urlencode('Attendance record reset successfully'));
+                    exit;
+                } else {
+                    // Redirect with error message
+                    header('Location: mark_attendance.php?user_id=' . urlencode($userId) . '&error=' . urlencode('Failed to reset attendance record'));
+                    exit;
+                }
             } else {
-                $error = 'Failed to remove attendance record';
+                // Redirect with error message
+                header('Location: mark_attendance.php?user_id=' . urlencode($userId) . '&error=' . urlencode('No attendance record found for today'));
+                exit;
             }
         }
     }
@@ -219,6 +314,7 @@ try {
         }
 
         .btn-primary:hover {
+            background: linear-gradient(135deg, #2980B9 0%, #2573A7 100%);
             transform: translateY(-2px);
             box-shadow: 0 6px 20px rgba(52, 152, 219, 0.3);
         }
@@ -230,6 +326,8 @@ try {
 
         .btn-secondary:hover {
             background: #5a6268;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(108, 117, 125, 0.3);
         }
 
         .btn-success {
@@ -239,6 +337,8 @@ try {
 
         .btn-success:hover {
             background: #218838;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(40, 167, 69, 0.3);
         }
 
         .btn-danger {
@@ -248,6 +348,19 @@ try {
 
         .btn-danger:hover {
             background: #c82333;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(220, 53, 69, 0.3);
+        }
+        
+        .btn-warning {
+            background: #ffc107;
+            color: #212529;
+        }
+
+        .btn-warning:hover {
+            background: #e0a800;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(255, 193, 7, 0.3);
         }
 
         .form-row {
@@ -259,16 +372,16 @@ try {
         .member-info {
             display: flex;
             align-items: center;
-            gap: 1rem;
-            margin-bottom: 1.5rem;
-            padding: 1rem;
-            background-color: #f8f9fa;
-            border-radius: 8px;
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+            padding: 1.5rem;
+            background: #f8f9fa;
+            border-radius: 12px;
         }
-
-        .member-avatar {
-            width: 60px;
-            height: 60px;
+        
+        .member-avatar-img {
+            width: 80px;
+            height: 80px;
             border-radius: 50%;
             background: linear-gradient(135deg, #3498DB 0%, #2980B9 100%);
             display: flex;
@@ -276,94 +389,144 @@ try {
             justify-content: center;
             color: white;
             font-weight: bold;
-            font-size: 1.2rem;
+            font-size: 2rem;
         }
-
+        
         .member-details {
             flex: 1;
         }
-
-        .member-details h3 {
-            margin: 0 0 0.25rem 0;
+        
+        .member-name {
+            font-size: 1.5rem;
+            font-weight: 600;
             color: #495057;
-            font-size: 1.1rem;
+            margin-bottom: 0.25rem;
         }
-
-        .member-details p {
-            margin: 0;
+        
+        .member-email {
+            color: #6c757d;
+            margin-bottom: 0.25rem;
+        }
+        
+        .member-phone {
             color: #6c757d;
             font-size: 0.9rem;
         }
-
-        .attendance-section {
-            margin-bottom: 1.5rem;
-            padding: 1rem;
-            background-color: #f8f9fa;
-            border-radius: 8px;
+        
+        .attendance-status {
+            margin-bottom: 2rem;
+            padding: 1.5rem;
+            background: #f8f9fa;
+            border-radius: 12px;
         }
-
-        .attendance-heading {
-            font-weight: 600;
+        
+        .attendance-status h3 {
+            margin-top: 0;
             color: #495057;
+            margin-bottom: 1.5rem;
+        }
+        
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+        }
+        
+        .status-item {
+            text-align: center;
+            padding: 1rem;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+        
+        .status-label {
+            font-weight: 600;
+            color: #6c757d;
             margin-bottom: 0.5rem;
-            font-size: 1rem;
         }
-
-        .attendance-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.25rem;
-            padding: 0.25rem 0.75rem;
-            border-radius: 12px;
-            font-size: 0.8rem;
+        
+        .status-value {
+            font-size: 1.1rem;
             font-weight: 500;
         }
         
-        .badge-absent {
-            background-color: #f8d7da;
-            color: #721c24;
+        .status-present {
+            color: #28a745;
         }
         
-        .badge-present {
-            background-color: #d4edda;
-            color: #155724;
+        .status-absent {
+            color: #dc3545;
         }
-
-        .status-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.25rem;
-            padding: 0.25rem 0.75rem;
-            border-radius: 12px;
-            font-size: 0.75rem;
-            font-weight: 500;
+        
+        .attendance-actions {
+            margin-bottom: 2rem;
         }
-
-        .status-active {
-            background-color: #006400;
-            color: white;
+        
+        .attendance-actions h3 {
+            color: #495057;
+            margin-bottom: 1.5rem;
         }
-
-        .status-inactive {
-            background-color: #f8d7da;
-            color: #721c24;
+        
+        .attendance-actions form {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
         }
-
-        .status-pending {
-            background-color: #fff3cd;
-            color: #856404;
-        }
-
+        
         .alert {
             padding: 1rem;
-            margin-bottom: 1rem;
             border-radius: 8px;
+            margin-bottom: 1rem;
         }
-
-        .alert-error {
-            background-color: #f8d7da;
+        
+        .alert-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .alert-danger {
+            background: #f8d7da;
             color: #721c24;
             border: 1px solid #f5c6cb;
+        }
+        
+        /* Loading animation */
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #3498DB;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        @media (max-width: 768px) {
+            .member-info {
+                flex-direction: column;
+                text-align: center;
+            }
+            
+            .status-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .attendance-actions form {
+                flex-direction: column;
+            }
+            
+            .attendance-actions form .btn {
+                width: 100%;
+            }
         }
     </style>
 </head>
@@ -372,96 +535,123 @@ try {
     
     <div class="container">
         <div class="page-header">
-            <h1><i class="fas fa-calendar-check"></i> Mark Attendance</h1>
-            <p>Mark attendance for library member</p>
+            <h1><i class="fas fa-user-clock"></i> Mark Attendance</h1>
+            <p>Record member's arrival and departure times</p>
         </div>
 
         <!-- Toast Container -->
         <div id="toast-container"></div>
 
-        <?php if (isset($error)): ?>
-            <script>
-                document.addEventListener('DOMContentLoaded', function() {
-                    showToast('<?php echo addslashes($error); ?>', 'error');
-                });
-            </script>
-        <?php endif; ?>
-        
-        <?php if (isset($success)): ?>
-            <script>
-                document.addEventListener('DOMContentLoaded', function() {
-                    const toast = showToast('<?php echo addslashes($success); ?>', 'success');
-                    // Redirect to members page after showing toast
-                    setTimeout(function() {
-                        window.location.href = 'members.php';
-                    }, 2000);
-                });
-            </script>
-        <?php endif; ?>
-
         <div class="content-card">
             <div class="card-header">
-                <h2>Member Attendance</h2>
+                <h2>Attendance for <?php echo htmlspecialchars($member['full_name']); ?></h2>
                 <div>
-                    <a href="attendance_history.php?user_id=<?php echo urlencode($member['user_id']); ?>" class="btn btn-primary">
-                        <i class="fas fa-history"></i>
-                        Attendance History
+                    <a href="attendance_history.php?user_id=<?php echo urlencode($userId); ?>" class="btn btn-primary" style="margin-right: 10px;">
+                        <i class="fas fa-history"></i> Attendance History
                     </a>
-                    <a href="attendance_report.php?user_id=<?php echo urlencode($member['user_id']); ?>" class="btn btn-primary">
-                        <i class="fas fa-file-alt"></i>
-                        Detailed Report
+                    <a href="attendance_report.php?user_id=<?php echo urlencode($userId); ?>" class="btn btn-primary" style="margin-right: 10px;">
+                        <i class="fas fa-chart-bar"></i> Attendance Report
+                    </a>
+                    <a href="members.php" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left"></i> Back to Members
                     </a>
                 </div>
             </div>
             
+            <!-- Member Info -->
             <div class="member-info">
                 <div class="member-avatar">
                     <?php 
-                    $initials = substr($member['first_name'], 0, 1) . substr($member['last_name'], 0, 1);
-                    echo strtoupper($initials);
-                    ?>
+                    // Display profile image if available, otherwise show initials
+                    if (!empty($member['profile_image']) && file_exists('../' . $member['profile_image'])): ?>
+                        <img src="../<?php echo htmlspecialchars($member['profile_image']); ?>" 
+                             alt="<?php echo htmlspecialchars($member['full_name']); ?>" 
+                             style="width: 80px; height: 80px; border-radius: 50%; object-fit: cover;">
+                    <?php else: 
+                        $initials = substr($member['first_name'], 0, 1) . substr($member['last_name'], 0, 1); ?>
+                        <div class="member-avatar-img">
+                            <?php echo strtoupper($initials); ?>
+                        </div>
+                    <?php endif; ?>
                 </div>
                 <div class="member-details">
-                    <h3><?php echo htmlspecialchars($member['full_name']); ?></h3>
-                    <p>
-                        <span class="status-badge status-<?php echo $member['status']; ?>">
-                            <?php echo ucfirst($member['status']); ?>
-                        </span>
-                    </p>
+                    <div class="member-name"><?php echo htmlspecialchars($member['full_name']); ?></div>
+                    <div class="member-email"><?php echo htmlspecialchars($member['email']); ?></div>
+                    <div class="member-phone">Phone: <?php echo htmlspecialchars($member['phone'] ?? 'N/A'); ?></div>
                 </div>
             </div>
             
-            <div class="attendance-section">
-                <div class="attendance-heading">Attendance Today</div>
-                <span class="attendance-badge <?php echo $isPresentToday ? 'badge-present' : 'badge-absent'; ?>">
-                    <i class="fas fa-<?php echo $isPresentToday ? 'check' : 'times'; ?>"></i>
-                    <?php echo $isPresentToday ? 'Present' : 'Absent'; ?>
-                </span>
+            <!-- Today's Attendance Status -->
+            <div class="attendance-status">
+                <h3>Today's Attendance Status</h3>
+                <div class="status-grid">
+                    <div class="status-item">
+                        <div class="status-label">Date</div>
+                        <div class="status-value"><?php echo date('F j, Y'); ?></div>
+                    </div>
+                    <div class="status-item">
+                        <div class="status-label">Checked In</div>
+                        <div class="status-value">
+                            <?php if ($hasArrivalTime): ?>
+                                <span class="status-present">
+                                    <i class="fas fa-check-circle"></i> 
+                                    <?php 
+                                    if (!empty($attendanceRecord['arrival_time'])) {
+                                        echo date('g:i A', strtotime($attendanceRecord['arrival_time']));
+                                    } else {
+                                        echo 'Recorded (time not specified)';
+                                    }
+                                    ?>
+                                </span>
+                            <?php else: ?>
+                                <span class="status-absent">
+                                    <i class="fas fa-times-circle"></i> Not yet
+                                </span>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                    <div class="status-item">
+                        <div class="status-label">Checked Out</div>
+                        <div class="status-value">
+                            <?php if ($hasDepartureTime): ?>
+                                <span class="status-present">
+                                    <i class="fas fa-check-circle"></i> 
+                                    <?php echo date('g:i A', strtotime($attendanceRecord['departure_time'])); ?>
+                                </span>
+                            <?php else: ?>
+                                <span class="status-absent">
+                                    <i class="fas fa-times-circle"></i> Not yet
+                                </span>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                </div>
             </div>
             
-            <form method="POST">
-                <div class="form-group">
-                    <label for="attendance_date">Attendance Date</label>
-                    <input type="text" id="attendance_date" class="form-control" value="<?php echo date('F j, Y'); ?>" readonly>
-                </div>
-                
-                <div class="form-group">
-                    <label>
-                        <input type="checkbox" name="present" value="1" <?php echo $isPresentToday ? 'checked' : ''; ?>>
-                        Mark as Present Today
-                    </label>
-                </div>
-                
-                <div class="form-row">
-                    <button type="submit" class="btn btn-success">
-                        <i class="fas fa-save"></i>
-                        Save Attendance
-                    </button>
-                    <a href="members.php" class="btn btn-secondary">
-                        Cancel
-                    </a>
-                </div>
-            </form>
+            <!-- Attendance Actions -->
+            <div class="attendance-actions">
+                <h3>Attendance Actions</h3>
+                <form method="POST" id="attendanceForm">
+                    <?php if (!$hasArrivalTime): ?>
+                        <button type="submit" name="action" value="check_in" class="btn btn-success">
+                            <i class="fas fa-sign-in-alt"></i> Check In (Record Arrival)
+                        </button>
+                    <?php endif; ?>
+                    
+                    <?php if ($hasArrivalTime && !$hasDepartureTime): ?>
+                        <button type="submit" name="action" value="check_out" class="btn btn-warning">
+                            <i class="fas fa-sign-out-alt"></i> Check Out (Record Departure)
+                        </button>
+                    <?php endif; ?>
+                    
+                    <?php if ($isPresentToday): ?>
+                        <button type="submit" name="action" value="reset" class="btn btn-danger" onclick="return confirm('Are you sure you want to reset today\'s attendance record?')">
+                            <i class="fas fa-undo"></i> Reset Attendance
+                        </button>
+                    <?php endif; ?>
+                </form>
+            </div>
+            
         </div>
     </div>
     
@@ -535,8 +725,42 @@ try {
             return toast;
         }
         
-        // Check for URL parameters and show toast notifications
+        // Detect user timezone and send to server
         document.addEventListener('DOMContentLoaded', function() {
+            // Get user's timezone
+            const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+            
+            // Check if we've already set this timezone to avoid infinite loops
+            const timezoneKey = 'lms_user_timezone';
+            const storedTimezone = localStorage.getItem(timezoneKey);
+            
+            if (storedTimezone !== userTimezone) {
+                // Send timezone to server via AJAX
+                fetch('../includes/set_timezone.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({timezone: userTimezone})
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        console.log('Timezone set to: ' + userTimezone);
+                        // Store the timezone in localStorage to prevent future reloads
+                        localStorage.setItem(timezoneKey, userTimezone);
+                        // Only reload if this is the first time setting the timezone
+                        if (!storedTimezone) {
+                            window.location.reload();
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error('Error setting timezone:', error);
+                });
+            }
+            
+            // Check for URL parameters and show toast notifications
             const urlParams = new URLSearchParams(window.location.search);
             const success = urlParams.get('success');
             const error = urlParams.get('error');

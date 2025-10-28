@@ -386,12 +386,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirm_delete'])) {
             
             <div class="member-details-container">
                 <div class="member-avatar">
-                    <div class="member-avatar-img">
-                        <?php 
-                        $initials = substr($member['first_name'], 0, 1) . substr($member['last_name'], 0, 1);
-                        echo strtoupper($initials);
-                        ?>
-                    </div>
+                    <?php 
+                    // Display profile image if available, otherwise show initials
+                    if (!empty($member['profile_image']) && file_exists('../' . $member['profile_image'])): ?>
+                        <img src="../<?php echo htmlspecialchars($member['profile_image']); ?>" 
+                             alt="<?php echo htmlspecialchars($member['first_name'] . ' ' . $member['last_name']); ?>" 
+                             style="width: 200px; height: 200px; border-radius: 50%; object-fit: cover; box-shadow: 0 4px 12px rgba(52, 152, 219, 0.2); margin: 0 auto; border: 5px solid white;">
+                    <?php else: 
+                        $initials = substr($member['first_name'], 0, 1) . substr($member['last_name'], 0, 1); ?>
+                        <div class="member-avatar-img">
+                            <?php echo strtoupper($initials); ?>
+                        </div>
+                    <?php endif; ?>
                 </div>
                 
                 <div class="member-info">

@@ -171,14 +171,23 @@ try {
     }
     $members = $stmt->fetchAll();
     
-    // Get attendance data for today for all members
+    // Get attendance data for today for all members with time information
     $attendanceStmt = $db->prepare("
-        SELECT user_id 
+        SELECT user_id, arrival_time, departure_time 
         FROM attendance 
         WHERE library_id = ? AND attendance_date = CURDATE()
     ");
     $attendanceStmt->execute([$libraryId]);
-    $attendanceData = $attendanceStmt->fetchAll(PDO::FETCH_COLUMN);
+    $attendanceData = $attendanceStmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    // Create associative array for quick lookup
+    $attendanceLookup = [];
+    foreach ($attendanceData as $record) {
+        $attendanceLookup[$record['user_id']] = [
+            'arrival_time' => $record['arrival_time'],
+            'departure_time' => $record['departure_time']
+        ];
+    }
     
     // Function to get attendance history for a member
     function getAttendanceHistory($db, $userId, $days = 7) {
@@ -828,16 +837,55 @@ $pageTitle = 'Members Management';
                                     <td><?php echo htmlspecialchars($member['email']); ?></td>
                                     <td><?php echo htmlspecialchars($member['phone'] ?? 'N/A'); ?></td>
                                     <td>
-                                        <span class="status-badge status-<?php echo $member['status']; ?>">
-                                            <?php echo ucfirst($member['status']); ?>
-                                        </span>
+                                        <?php 
+                                        $memberIntegerId = $member['id'];
+                                        $attendanceInfo = isset($attendanceLookup[$memberIntegerId]) ? $attendanceLookup[$memberIntegerId] : null;
+                                        $isPresentToday = $attendanceInfo !== null;
+                                        // Consider present if there's any attendance record, regardless of time data
+                                        $hasArrivalTime = $isPresentToday && (!empty($attendanceInfo['arrival_time']) || (!$attendanceInfo['arrival_time'] && !$attendanceInfo['departure_time']));
+                                        $hasDepartureTime = $isPresentToday && !empty($attendanceInfo['departure_time']);
+                                        
+                                        if ($isPresentToday): 
+                                        ?>
+                                            <span class="status-badge status-active" title="<?php 
+                                                $title = 'Present';
+                                                if (!empty($attendanceInfo['arrival_time'])) {
+                                                    $title = 'Checked in at ' . date('g:i A', strtotime($attendanceInfo['arrival_time']));
+                                                }
+                                                if (!empty($attendanceInfo['departure_time'])) {
+                                                    $title .= ', Checked out at ' . date('g:i A', strtotime($attendanceInfo['departure_time']));
+                                                }
+                                                echo htmlspecialchars($title);
+                                            ?>">
+                                                <?php if ($hasDepartureTime): ?>
+                                                    <i class="fas fa-sign-out-alt"></i> Out
+                                                <?php elseif ($hasArrivalTime): ?>
+                                                    <i class="fas fa-sign-in-alt"></i> In
+                                                <?php else: ?>
+                                                    <i class="fas fa-check-circle"></i> Present
+                                                <?php endif; ?>
+                                            </span>
+                                        <?php else: ?>
+                                            <span class="status-badge status-inactive">
+                                                <i class="fas fa-times-circle"></i> Absent
+                                            </span>
+                                        <?php endif; ?>
                                     </td>
                                     <td><?php echo date('M j, Y', strtotime($member['created_at'])); ?></td>
                                     <td>
-                                        <?php $isPresentToday = in_array($member['user_id'], $attendanceData); ?>
-                                        <a href="mark_attendance.php?user_id=<?php echo urlencode($member['user_id']); ?>" class="btn btn-attendance action-btn" title="<?php echo $isPresentToday ? 'Mark as Absent' : 'Mark as Present'; ?>">
-                                            <i class="fas fa-check-circle <?php echo $isPresentToday ? 'attendance-present' : 'attendance-absent'; ?>"></i>
-                                        </a>
+                                        <?php if (!$isPresentToday): ?>
+                                            <a href="mark_attendance.php?user_id=<?php echo urlencode($member['user_id']); ?>" class="btn btn-attendance action-btn" title="Check In">
+                                                <i class="fas fa-sign-in-alt"></i>
+                                            </a>
+                                        <?php elseif ($isPresentToday && !$hasDepartureTime): ?>
+                                            <a href="mark_attendance.php?user_id=<?php echo urlencode($member['user_id']); ?>" class="btn btn-attendance action-btn" title="Check Out">
+                                                <i class="fas fa-sign-out-alt"></i>
+                                            </a>
+                                        <?php else: ?>
+                                            <a href="mark_attendance.php?user_id=<?php echo urlencode($member['user_id']); ?>" class="btn btn-attendance action-btn" title="View Attendance">
+                                                <i class="fas fa-history"></i>
+                                            </a>
+                                        <?php endif; ?>
                                         <?php if ($member['status'] === 'pending'): ?>
                                             <a href="resend_setup.php?user_id=<?php echo urlencode($member['user_id']); ?>" class="btn btn-resend action-btn" title="Resend Setup Email">
                                                 <i class="fas fa-paper-plane"></i>
