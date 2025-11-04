@@ -154,6 +154,21 @@ try {
                 ]);
                 
                 if ($result) {
+                    // Update the current_book_count in the libraries table
+                    try {
+                        // Get the current book count for this library
+                        $countStmt = $db->prepare("SELECT COUNT(*) as book_count FROM books WHERE library_id = ?");
+                        $countStmt->execute([$libraryId]);
+                        $bookCount = $countStmt->fetch()['book_count'];
+                        
+                        // Update the current_book_count in the libraries table
+                        $updateStmt = $db->prepare("UPDATE libraries SET current_book_count = ? WHERE id = ?");
+                        $updateStmt->execute([$bookCount, $libraryId]);
+                    } catch (Exception $e) {
+                        // Log the error but don't fail the book addition
+                        error_log('Failed to update current_book_count: ' . $e->getMessage());
+                    }
+                    
                     header('Content-Type: application/json');
                     echo json_encode([
                         'success' => true,

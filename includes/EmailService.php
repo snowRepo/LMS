@@ -232,6 +232,43 @@ class EmailService {
     }
     
     /**
+     * Send support reply email
+     */
+    public function sendSupportReply($userEmail, $userName, $subject, $originalMessage, $adminReply) {
+        $emailSubject = "Re: " . $subject;
+        
+        $body = "
+            <div style='font-family: Arial, sans-serif; line-height: 1.6; color: #333;'>
+                <div style='background: #3498DB; color: white; padding: 20px; text-align: center;'>
+                    <h1>Support Reply</h1>
+                </div>
+                <div style='padding: 20px; background: #f9f9f9;'>
+                    <p>Hello " . htmlspecialchars($userName) . ",</p>
+                    <p>Thank you for contacting our support team. Here is our response to your message:</p>
+                    
+                    <div style='background: #ffffff; border: 1px solid #e0e0e0; padding: 15px; margin: 20px 0; border-radius: 5px;'>
+                        <h3 style='margin-top: 0; color: #2c3e50;'>Your Original Message:</h3>
+                        <p>" . nl2br(htmlspecialchars($originalMessage)) . "</p>
+                    </div>
+                    
+                    <div style='background: #e3f2fd; border: 1px solid #bbdefb; padding: 15px; margin: 20px 0; border-radius: 5px;'>
+                        <h3 style='margin-top: 0; color: #1565c0;'>Our Response:</h3>
+                        <p>" . nl2br(htmlspecialchars($adminReply)) . "</p>
+                    </div>
+                    
+                    <p>If you have any further questions, please don't hesitate to contact us again.</p>
+                    <p>Best regards,<br>" . APP_NAME . " Support Team</p>
+                </div>
+                <div style='padding: 15px; text-align: center; color: #666; font-size: 12px; background: #f1f1f1;'>
+                    <p>&copy; " . date('Y') . " " . APP_NAME . ". All rights reserved.</p>
+                </div>
+            </div>
+        ";
+        
+        return $this->sendEmail($userEmail, $emailSubject, $body);
+    }
+    
+    /**
      * Send member setup email with temporary password
      */
     public function sendMemberSetupEmail($userEmail, $emailData) {

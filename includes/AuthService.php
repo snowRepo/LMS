@@ -154,10 +154,12 @@ class AuthService {
             SELECT u.id, u.user_id, u.username, u.email, u.password_hash, u.first_name, u.last_name, 
                    u.role, u.library_id, u.status, u.login_attempts, u.locked_until, u.email_verified,
                    u.profile_image, u.phone, u.address, u.date_of_birth,
-                   l.library_name
+                   l.library_name, l.deleted_at
             FROM users u
             LEFT JOIN libraries l ON u.library_id = l.id
-            WHERE (u.username = ? OR u.email = ?) AND u.status = 'active'
+            WHERE (u.username = ? OR u.email = ?) 
+              AND u.status = 'active'
+              AND (l.deleted_at IS NULL OR l.deleted_at = '')
         ");
         $stmt->execute([$username, $username]);
         return $stmt->fetch();
@@ -207,17 +209,34 @@ class AuthService {
      * Get redirect URL based on user role
      */
     public function getRedirectUrl($role, $libraryId = null) {
+        // Check subscription status for all non-admin roles except supervisors (who can manage subscriptions)
+        if ($role !== 'admin' && $role !== 'supervisor' && $libraryId) {
+            $subscriptionManager = new SubscriptionManager();
+            if (!$subscriptionManager->hasActiveSubscription($libraryId)) {
+                // Redirect to appropriate expired page based on role
+                switch ($role) {
+                    case 'member':
+                        return 'expired_member.php';
+                    case 'librarian':
+                        return 'expired_librarian.php';
+                    default:
+                        return 'login.php';
+                }
+            }
+        }
+        
+        // Supervisors get special handling - they can access subscription management
+        if ($role === 'supervisor' && $libraryId) {
+            $subscriptionManager = new SubscriptionManager();
+            if (!$subscriptionManager->hasActiveSubscription($libraryId)) {
+                return 'expired_supervisor.php'; // Redirect to expired page if subscription expired
+            }
+        }
+        
         switch ($role) {
             case 'admin':
                 return 'admin/dashboard.php';
             case 'supervisor':
-                // Check subscription status for supervisors
-                if ($libraryId) {
-                    $subscriptionManager = new SubscriptionManager();
-                    if (!$subscriptionManager->hasActiveSubscription($libraryId)) {
-                        return 'subscription.php'; // Redirect to subscription page if expired
-                    }
-                }
                 return 'supervisor/dashboard.php';
             case 'librarian':
                 return 'librarian/dashboard.php';

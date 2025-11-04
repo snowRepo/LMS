@@ -95,6 +95,36 @@ try {
         throw new Exception('Failed to update subscription in database');
     }
     
+    // Get the subscription ID for payment history
+    $stmt = $db->prepare("SELECT id FROM subscriptions WHERE library_id = ? ORDER BY created_at DESC LIMIT 1");
+    $stmt->execute([$libraryId]);
+    $subscription = $stmt->fetch();
+    
+    if (!$subscription) {
+        throw new Exception('Failed to retrieve subscription ID');
+    }
+    
+    $subscriptionId = $subscription['id'];
+    
+    // Insert payment history record
+    $planDetails = PaystackService::getPlanDetails($plan);
+    $amount = $paymentData['amount'] / 100; // Convert from pesewas to cedis
+    
+    $stmt = $db->prepare("
+        INSERT INTO payment_history 
+        (subscription_id, amount, currency, payment_method, transaction_reference, status, created_by, payment_type)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 'gateway')
+    ");
+    $stmt->execute([
+        $subscriptionId,
+        $amount,
+        'GHS',
+        $paymentData['channel'] ?? 'credit_card', // Use payment channel from Paystack or default to credit_card
+        $reference, // Use the transaction reference from Paystack
+        'completed',
+        $_SESSION['user_id'] // Set created_by to the supervisor's user ID
+    ]);
+    
     // Update book limit based on plan
     $planDetails = PaystackService::getPlanDetails($plan);
     $bookLimit = $planDetails['book_limit'];

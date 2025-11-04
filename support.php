@@ -289,24 +289,24 @@ $currentPage = 'support.php';
         
         <div class="support-grid">
             <div class="support-card">
-                <i class="fas fa-question-circle"></i>
-                <h3>FAQ</h3>
-                <p>Find answers to commonly asked questions about using our system</p>
-                <a href="#faq" class="btn btn-outline">View FAQ</a>
+                <i class="fas fa-hashtag"></i>
+                <h3>Social Media</h3>
+                <p>Connect with us on our social media platforms</p>
+                <div class="btn btn-outline">Coming Soon</div>
             </div>
             
             <div class="support-card">
                 <i class="fas fa-envelope"></i>
                 <h3>Email Support</h3>
                 <p>Contact our support team directly for personalized assistance</p>
-                <a href="mailto:support@lms.com" class="btn btn-outline">Email Us</a>
+                <a href="mailto:info.lms.library@gmail.com" class="btn btn-outline">info.lms.library@gmail.com</a>
             </div>
             
             <div class="support-card">
                 <i class="fas fa-phone-alt"></i>
-                <h3>Phone Support</h3>
-                <p>Speak with a support representative during business hours</p>
-                <a href="tel:+11234567890" class="btn btn-outline">Call Us</a>
+                <h3>Call or WhatsApp</h3>
+                <p>Reach us via phone or WhatsApp for immediate assistance</p>
+                <a href="tel:+233246960543" class="btn btn-outline">+233 24 696 0543</a>
             </div>
         </div>
         
@@ -358,7 +358,7 @@ $currentPage = 'support.php';
                     How do I add books to the library?
                 </div>
                 <div class="faq-answer">
-                    Book management is available to librarian and supervisor roles. 
+                    Book management is available to librarian roles. 
                     After logging in, navigate to the "Books" section in your dashboard 
                     and use the "Add New Book" button to enter book details.
                 </div>
@@ -380,7 +380,7 @@ $currentPage = 'support.php';
             <h2>Send Us a Message</h2>
             <p>Have a question or need assistance? Fill out the form below and our support team will get back to you as soon as possible.</p>
             
-            <form class="contact-form">
+            <form class="contact-form" id="supportForm">
                 <div class="form-group">
                     <input type="text" id="name" name="name" placeholder="Your Name" required>
                 </div>
@@ -393,10 +393,11 @@ $currentPage = 'support.php';
                 <div class="form-group">
                     <textarea id="message" name="message" placeholder="Your Message" rows="5" required></textarea>
                 </div>
-                <button type="submit" class="btn btn-primary">
+                <button type="submit" class="btn btn-primary" id="submitBtn">
                     <i class="fas fa-paper-plane"></i> Send Message
                 </button>
             </form>
+            <div id="formMessage" style="margin-top: 15px; padding: 10px; border-radius: 5px; display: none;"></div>
         </div>
     </div>
     
@@ -424,6 +425,68 @@ $currentPage = 'support.php';
                         icon.classList.remove('fa-chevron-right');
                         icon.classList.add('fa-chevron-down');
                     }
+                });
+            });
+            
+            // Handle support form submission
+            const supportForm = document.getElementById('supportForm');
+            const submitBtn = document.getElementById('submitBtn');
+            const formMessage = document.getElementById('formMessage');
+            
+            supportForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                // Get form data
+                const name = document.getElementById('name').value;
+                const email = document.getElementById('email').value;
+                const subject = document.getElementById('subject').value;
+                const message = document.getElementById('message').value;
+                
+                // Disable submit button and show loading
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
+                
+                // Send data via AJAX
+                fetch('ajax_support_message.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        name: name,
+                        email: email,
+                        subject: subject,
+                        message: message
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        formMessage.style.display = 'block';
+                        formMessage.style.backgroundColor = '#d4edda';
+                        formMessage.style.color = '#155724';
+                        formMessage.style.border = '1px solid #c3e6cb';
+                        formMessage.innerHTML = '<i class="fas fa-check-circle"></i> ' + data.message;
+                        supportForm.reset();
+                    } else {
+                        formMessage.style.display = 'block';
+                        formMessage.style.backgroundColor = '#f8d7da';
+                        formMessage.style.color = '#721c24';
+                        formMessage.style.border = '1px solid #f5c6cb';
+                        formMessage.innerHTML = '<i class="fas fa-exclamation-circle"></i> ' + data.message;
+                    }
+                })
+                .catch(error => {
+                    formMessage.style.display = 'block';
+                    formMessage.style.backgroundColor = '#f8d7da';
+                    formMessage.style.color = '#721c24';
+                    formMessage.style.border = '1px solid #f5c6cb';
+                    formMessage.innerHTML = '<i class="fas fa-exclamation-circle"></i> An error occurred. Please try again.';
+                })
+                .finally(() => {
+                    // Re-enable submit button
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Send Message';
                 });
             });
         });

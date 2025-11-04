@@ -6,6 +6,7 @@ require_once '../includes/EnvLoader.php';
 EnvLoader::load();
 include '../config/config.php';
 require_once '../includes/SubscriptionManager.php';
+require_once '../includes/SubscriptionCheck.php';
 
 // Start session
 if (session_status() == PHP_SESSION_NONE) {
@@ -18,7 +19,10 @@ if (!is_logged_in() || $_SESSION['user_role'] !== 'supervisor') {
     exit;
 }
 
-// Check subscription status
+// Check subscription status - redirect to expired page if subscription is not active
+requireActiveSubscription();
+
+// Check subscription status (keeping original logic for backward compatibility)
 $subscriptionManager = new SubscriptionManager();
 $libraryId = $_SESSION['library_id'];
 $hasActiveSubscription = $subscriptionManager->hasActiveSubscription($libraryId);
@@ -67,7 +71,7 @@ try {
         AND attendance_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
         ORDER BY attendance_date DESC
     ");
-    $stmt->execute([$userId, $libraryId]);
+    $stmt->execute([$member['id'], $libraryId]);
     $attendanceHistory = $stmt->fetchAll(PDO::FETCH_COLUMN);
     
     // Get borrowing history for the member
@@ -564,8 +568,8 @@ try {
             <h1><i class="fas fa-file-alt"></i> Detailed Member Report</h1>
             <p>Comprehensive report for <?php echo htmlspecialchars($member['first_name'] . ' ' . $member['last_name']); ?></p>
             <p style="font-size: 0.8rem; color: #7f8c8d;">Report ID: <?php echo 'RPT-' . date('Ymd') . '-' . strtoupper(substr($member['user_id'], 0, 6)); ?></p>
-            <p style="font-size: 0.8rem; color: #7f8c8d;">Generated on <?php echo date('M j, Y \a\t g:i A T'); ?></p>
-            <p style="font-size: 0.7rem; color: #95a5a6; margin-top: 0.25rem;">Time shown in <?php echo date_default_timezone_get(); ?> timezone</p>
+            <p style="font-size: 0.8rem; color: #7f8c8d;">Generated on <?php echo gmdate('M j, Y \a\t g:i A') . ' UTC'; ?></p>
+
         </div>
         
         <!-- Toast Container -->

@@ -37,7 +37,11 @@ if (!$hasActiveSubscription) {
 try {
     $db = Database::getInstance()->getConnection();
     
-    // Get report data
+    // Get total supervisors count
+    $stmt = $db->prepare("SELECT COUNT(*) as total FROM users WHERE library_id = ? AND role = 'supervisor'");
+    $stmt->execute([$libraryId]);
+    $totalSupervisors = $stmt->fetch()['total'];
+    
     // Get total members count
     $stmt = $db->prepare("SELECT COUNT(*) as total FROM users WHERE library_id = ? AND role = 'member'");
     $stmt->execute([$libraryId]);
@@ -53,22 +57,20 @@ try {
     $stmt->execute([$libraryId]);
     $totalLibrarians = $stmt->fetch()['total'];
     
-    // Get active members (attended today)
-    $stmt = $db->prepare("SELECT COUNT(DISTINCT user_id) as total FROM attendance WHERE library_id = ? AND attendance_date = CURDATE()");
+    // Get borrowing statistics
+    $stmt = $db->prepare("SELECT COUNT(*) as total FROM borrowings br JOIN users u ON br.member_id = u.id WHERE u.library_id = ?");
     $stmt->execute([$libraryId]);
-    $activeMembersToday = $stmt->fetch()['total'];
+    $totalBorrowings = $stmt->fetch()['total'];
     
-    // Get borrowed books count (active status)
     $stmt = $db->prepare("SELECT COUNT(*) as total FROM borrowings br JOIN users u ON br.member_id = u.id WHERE u.library_id = ? AND br.status = 'active'");
     $stmt->execute([$libraryId]);
-    $borrowedBooks = $stmt->fetch()['total'];
+    $activeBorrowings = $stmt->fetch()['total'];
     
-    // Get overdue books count
     $stmt = $db->prepare("SELECT COUNT(*) as total FROM borrowings br JOIN users u ON br.member_id = u.id WHERE u.library_id = ? AND br.status = 'overdue'");
     $stmt->execute([$libraryId]);
-    $overdueBooks = $stmt->fetch()['total'];
+    $dueBooks = $stmt->fetch()['total'];
     
-    // Get top 5 most borrowed books
+    // Get top 3 most borrowed books
     $stmt = $db->prepare("
         SELECT b.title, b.isbn, COUNT(br.id) as borrow_count
         FROM borrowings br
@@ -77,24 +79,26 @@ try {
         WHERE u.library_id = ?
         GROUP BY br.book_id
         ORDER BY borrow_count DESC
-        LIMIT 5
+        LIMIT 3
     ");
     $stmt->execute([$libraryId]);
     $popularBooks = $stmt->fetchAll();
     
-    // Get member attendance statistics for the last 7 days
+    // Get member attendance data with count
     $stmt = $db->prepare("
         SELECT 
-            DATE(attendance_date) as date,
-            COUNT(DISTINCT user_id) as attendance_count
-        FROM attendance 
-        WHERE library_id = ? 
-        AND attendance_date >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
-        GROUP BY DATE(attendance_date)
-        ORDER BY DATE(attendance_date)
+            u.user_id,
+            u.first_name,
+            u.last_name,
+            COUNT(a.user_id) as attendance_count
+        FROM users u
+        LEFT JOIN attendance a ON u.id = a.user_id AND a.library_id = ?
+        WHERE u.library_id = ? AND u.role = 'member'
+        GROUP BY u.id, u.user_id, u.first_name, u.last_name
+        ORDER BY attendance_count DESC
     ");
-    $stmt->execute([$libraryId]);
-    $attendanceData = $stmt->fetchAll();
+    $stmt->execute([$libraryId, $libraryId]);
+    $memberAttendance = $stmt->fetchAll();
     
     // Create new PDF document
     $pdf = new TCPDF(PDF_PAGE_ORIENTATION, PDF_UNIT, PDF_PAGE_FORMAT, true, 'UTF-8', false);
@@ -141,40 +145,78 @@ try {
     $pdf->Cell(0, 10, 'Library ID: ' . $libraryId, 0, 1, 'C');
     $pdf->Ln(10);
     
-    // Summary Statistics
+    // Overall Library Data
     $pdf->SetFont('helvetica', 'B', 16);
-    $pdf->Cell(0, 10, 'Summary Statistics', 0, 1, 'L');
+    $pdf->Cell(0, 10, 'Overall Library Data', 0, 1, 'L');
     $pdf->SetFont('helvetica', '', 12);
     
-    // Create table for summary statistics
+    // Create table for overall library data
     $pdf->SetFont('helvetica', 'B', 12);
     $pdf->Cell(80, 10, 'Metric', 1, 0, 'C');
     $pdf->Cell(80, 10, 'Value', 1, 1, 'C');
     
     $pdf->SetFont('helvetica', '', 12);
+    $pdf->Cell(80, 10, 'Total Supervisors', 1, 0, 'L');
+    $pdf->Cell(80, 10, $totalSupervisors, 1, 1, 'C');
+    
+    $pdf->Cell(80, 10, 'Total Librarians', 1, 0, 'L');
+    $pdf->Cell(80, 10, $totalLibrarians, 1, 1, 'C');
+    
     $pdf->Cell(80, 10, 'Total Members', 1, 0, 'L');
     $pdf->Cell(80, 10, $totalMembers, 1, 1, 'C');
     
     $pdf->Cell(80, 10, 'Total Books', 1, 0, 'L');
     $pdf->Cell(80, 10, $totalBooks, 1, 1, 'C');
     
-    $pdf->Cell(80, 10, 'Total Librarians', 1, 0, 'L');
-    $pdf->Cell(80, 10, $totalLibrarians, 1, 1, 'C');
+    $pdf->Ln(10);
     
-    $pdf->Cell(80, 10, 'Active Members Today', 1, 0, 'L');
-    $pdf->Cell(80, 10, $activeMembersToday, 1, 1, 'C');
+    // Borrowing Section
+    $pdf->SetFont('helvetica', 'B', 16);
+    $pdf->Cell(0, 10, 'Borrowing Statistics', 0, 1, 'L');
+    $pdf->SetFont('helvetica', '', 12);
     
-    $pdf->Cell(80, 10, 'Borrowed Books', 1, 0, 'L');
-    $pdf->Cell(80, 10, $borrowedBooks, 1, 1, 'C');
+    // Create table for borrowing statistics
+    $pdf->SetFont('helvetica', 'B', 12);
+    $pdf->Cell(80, 10, 'Metric', 1, 0, 'C');
+    $pdf->Cell(80, 10, 'Value', 1, 1, 'C');
     
-    $pdf->Cell(80, 10, 'Overdue Books', 1, 0, 'L');
-    $pdf->Cell(80, 10, $overdueBooks, 1, 1, 'C');
+    $pdf->SetFont('helvetica', '', 12);
+    $pdf->Cell(80, 10, 'Total Borrowings', 1, 0, 'L');
+    $pdf->Cell(80, 10, $totalBorrowings, 1, 1, 'C');
+    
+    $pdf->Cell(80, 10, 'Active Borrowings', 1, 0, 'L');
+    $pdf->Cell(80, 10, $activeBorrowings, 1, 1, 'C');
+    
+    $pdf->Cell(80, 10, 'Due Books', 1, 0, 'L');
+    $pdf->Cell(80, 10, $dueBooks, 1, 1, 'C');
     
     $pdf->Ln(10);
     
-    // Most Popular Books
+    // Attendance Section
     $pdf->SetFont('helvetica', 'B', 16);
-    $pdf->Cell(0, 10, 'Most Popular Books', 0, 1, 'L');
+    $pdf->Cell(0, 10, 'Member Attendance', 0, 1, 'L');
+    $pdf->SetFont('helvetica', '', 12);
+    
+    if (count($memberAttendance) > 0) {
+        // Create table for member attendance
+        $pdf->SetFont('helvetica', 'B', 12);
+        $pdf->Cell(90, 10, 'Name', 1, 0, 'C');
+        $pdf->Cell(70, 10, 'Attendance Count', 1, 1, 'C');
+        
+        $pdf->SetFont('helvetica', '', 10);
+        foreach ($memberAttendance as $member) {
+            $pdf->Cell(90, 10, $member['first_name'] . ' ' . $member['last_name'], 1, 0, 'L');
+            $pdf->Cell(70, 10, $member['attendance_count'], 1, 1, 'C');
+        }
+    } else {
+        $pdf->Cell(0, 10, 'No attendance data available', 0, 1, 'C');
+    }
+    
+    $pdf->Ln(10);
+    
+    // Most Popular Books (Top 3)
+    $pdf->SetFont('helvetica', 'B', 16);
+    $pdf->Cell(0, 10, 'Most Popular Books (Top 3)', 0, 1, 'L');
     $pdf->SetFont('helvetica', '', 12);
     
     if (count($popularBooks) > 0) {
@@ -192,28 +234,6 @@ try {
         }
     } else {
         $pdf->Cell(0, 10, 'No borrowing data available', 0, 1, 'C');
-    }
-    
-    $pdf->Ln(10);
-    
-    // Weekly Attendance Trend
-    $pdf->SetFont('helvetica', 'B', 16);
-    $pdf->Cell(0, 10, 'Weekly Attendance Trend', 0, 1, 'L');
-    $pdf->SetFont('helvetica', '', 12);
-    
-    if (count($attendanceData) > 0) {
-        // Create table for attendance data
-        $pdf->SetFont('helvetica', 'B', 12);
-        $pdf->Cell(90, 10, 'Date', 1, 0, 'C');
-        $pdf->Cell(70, 10, 'Attendance Count', 1, 1, 'C');
-        
-        $pdf->SetFont('helvetica', '', 10);
-        foreach ($attendanceData as $data) {
-            $pdf->Cell(90, 10, $data['date'], 1, 0, 'C');
-            $pdf->Cell(70, 10, $data['attendance_count'], 1, 1, 'C');
-        }
-    } else {
-        $pdf->Cell(0, 10, 'No attendance data available', 0, 1, 'C');
     }
     
     // Close and output PDF document

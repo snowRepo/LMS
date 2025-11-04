@@ -154,18 +154,14 @@ $pageTitle = 'Reservation History';
         }
         
         .page-header h1 {
-            color: #2c3e50;
-            margin: 0 0 0.5rem;
-            font-size: 1.8rem;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            gap: 0.5rem;
+            color: #212529;
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
         }
         
         .page-header p {
-            color: #7f8c8d;
-            margin: 0;
+            color: #6c757d;
+            font-size: 1.1rem;
         }
         
         .section {

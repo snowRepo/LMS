@@ -5,6 +5,7 @@ define('LMS_ACCESS', true);
 require_once '../includes/EnvLoader.php';
 EnvLoader::load();
 include '../config/config.php';
+require_once '../includes/SubscriptionCheck.php';
 
 // Start session
 if (session_status() == PHP_SESSION_NONE) {
@@ -16,6 +17,9 @@ if (!is_logged_in() || $_SESSION['user_role'] !== 'librarian') {
     header('Location: ../login.php');
     exit;
 }
+
+// Check subscription status - redirect to expired page if subscription is not active
+requireActiveSubscription();
 
 // Handle search
 $search = isset($_GET['search']) ? trim($_GET['search']) : '';
@@ -107,18 +111,14 @@ $pageTitle = 'Borrowing';
         }
         
         .page-header h1 {
-            color: #2c3e50;
-            margin: 0 0 0.5rem;
-            font-size: 1.8rem;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            gap: 0.5rem;
+            color: #212529;
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
         }
         
         .page-header p {
-            color: #7f8c8d;
-            margin: 0;
+            color: #6c757d;
+            font-size: 1.1rem;
         }
         
         .dashboard-cards {

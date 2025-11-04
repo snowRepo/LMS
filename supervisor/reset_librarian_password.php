@@ -247,6 +247,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reset_password'])) {
             box-shadow: 0 4px 12px rgba(52, 152, 219, 0.2);
             margin: 0 auto;
             border: 5px solid white;
+            overflow: hidden;
+        }
+        
+        .librarian-avatar-img img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
         }
 
         .librarian-info {
@@ -376,10 +383,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reset_password'])) {
             <div class="librarian-details-container">
                 <div class="librarian-avatar">
                     <div class="librarian-avatar-img">
-                        <?php 
-                        $initials = substr($librarian['first_name'], 0, 1) . substr($librarian['last_name'], 0, 1);
-                        echo strtoupper($initials);
-                        ?>
+                        <?php if (!empty($librarian['profile_image']) && file_exists('../' . $librarian['profile_image'])): ?>
+                            <img src="../<?php echo htmlspecialchars($librarian['profile_image']); ?>" 
+                                 alt="<?php echo htmlspecialchars($librarian['first_name'] . ' ' . $librarian['last_name']); ?>" 
+                                 style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">
+                        <?php else: ?>
+                            <?php 
+                            $initials = substr($librarian['first_name'], 0, 1) . substr($librarian['last_name'], 0, 1);
+                            echo strtoupper($initials);
+                            ?>
+                        <?php endif; ?>
                     </div>
                 </div>
                 

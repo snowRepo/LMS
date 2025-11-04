@@ -6,6 +6,7 @@ require_once '../includes/EnvLoader.php';
 EnvLoader::load();
 include '../config/config.php';
 require_once '../includes/NotificationService.php';
+require_once '../includes/SubscriptionCheck.php';
 
 // Start session
 if (session_status() == PHP_SESSION_NONE) {
@@ -17,6 +18,9 @@ if (!is_logged_in() || $_SESSION['user_role'] !== 'member') {
     header('Location: ../login.php');
     exit;
 }
+
+// Check subscription status - redirect to expired page if subscription is not active
+requireActiveSubscription();
 
 // Get book ID from URL parameter
 $bookId = isset($_GET['book_id']) ? trim($_GET['book_id']) : '';
@@ -191,7 +195,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         
         .page-header h1 {
-            color: #495057;
+            color: #212529;
             font-size: 2rem;
             margin-bottom: 0.5rem;
         }

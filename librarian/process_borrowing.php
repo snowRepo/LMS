@@ -450,18 +450,13 @@ if (!isset($_SESSION['csrf_token'])) {
         }
         
         .page-header h1 {
-            color: var(--gray-900);
-            margin: 0 0 0.5rem;
+            color: #212529;
             font-size: 2rem;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            gap: 0.5rem;
+            margin-bottom: 0.5rem;
         }
         
         .page-header p {
-            color: var(--gray-600);
-            margin: 0;
+            color: #6c757d;
             font-size: 1.1rem;
         }
         

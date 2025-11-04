@@ -6,6 +6,7 @@ require_once '../includes/EnvLoader.php';
 EnvLoader::load();
 include '../config/config.php';
 require_once '../includes/SubscriptionManager.php';
+require_once '../includes/SubscriptionCheck.php';
 
 // Start session
 if (session_status() == PHP_SESSION_NONE) {
@@ -18,7 +19,10 @@ if (!is_logged_in() || $_SESSION['user_role'] !== 'supervisor') {
     exit;
 }
 
-// Check subscription status
+// Check subscription status - redirect to expired page if subscription is not active
+requireActiveSubscription();
+
+// Check subscription status (keeping original logic for backward compatibility)
 $subscriptionManager = new SubscriptionManager();
 $libraryId = $_SESSION['library_id'];
 $hasActiveSubscription = $subscriptionManager->hasActiveSubscription($libraryId);

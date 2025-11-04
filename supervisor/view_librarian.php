@@ -369,6 +369,11 @@ try {
                     </div>
                     
                     <div class="info-group">
+                        <div class="info-label">Date of Birth</div>
+                        <div class="info-value"><?php echo !empty($librarian['date_of_birth']) ? date('M j, Y', strtotime($librarian['date_of_birth'])) : 'N/A'; ?></div>
+                    </div>
+                    
+                    <div class="info-group">
                         <div class="info-label">Status</div>
                         <div class="info-value">
                             <span class="status-badge status-<?php echo $librarian['status']; ?>">

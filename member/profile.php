@@ -6,6 +6,7 @@ require_once '../includes/EnvLoader.php';
 EnvLoader::load();
 include '../config/config.php';
 require_once '../includes/FileUploadHandler.php';
+require_once '../includes/SubscriptionCheck.php';
 // Database class is already available through config.php, no need to include it separately
 
 // Start session
@@ -18,6 +19,9 @@ if (!is_logged_in() || $_SESSION['user_role'] !== 'member') {
     header('Location: ../login.php');
     exit;
 }
+
+// Check subscription status - redirect to expired page if subscription is not active
+requireActiveSubscription();
 
 // Handle profile image upload
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['profile_image']) && !empty($_FILES['profile_image']['name'])) {
@@ -195,7 +199,7 @@ $pageTitle = 'Profile';
         }
 
         .page-header h1 {
-            color: #495057;
+            color: #212529;
             font-size: 2rem;
             margin-bottom: 0.5rem;
         }

@@ -5,6 +5,7 @@ define('LMS_ACCESS', true);
 require_once '../includes/EnvLoader.php';
 EnvLoader::load();
 include '../config/config.php';
+require_once '../includes/SubscriptionCheck.php';
 
 // Start session
 if (session_status() == PHP_SESSION_NONE) {
@@ -17,6 +18,9 @@ if (!is_logged_in() || $_SESSION['user_role'] !== 'member') {
     header('Location: ../login.php');
     exit;
 }
+
+// Check subscription status - redirect to expired page if subscription is not active
+requireActiveSubscription();
 
 // Initialize database connection
 $db = Database::getInstance()->getConnection();
@@ -118,7 +122,7 @@ $pageTitle = 'My Borrowings';
         }
         
         .page-header h1 {
-            color: #495057;
+            color: #212529;
             font-size: 2rem;
             margin-bottom: 0.5rem;
         }

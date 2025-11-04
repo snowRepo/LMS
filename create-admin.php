@@ -5,13 +5,13 @@
  * Security: Only accessible from localhost and password protected
  */
 
-// Security: Only allow localhost access
-$allowedIPs = ['127.0.0.1', '::1', 'localhost'];
+// Security: Only allow specific IP address access
+$allowedIPs = ['127.0.0.1', '::1', 'localhost', '192.168.8.180'];
 $clientIP = $_SERVER['REMOTE_ADDR'] ?? $_SERVER['HTTP_CLIENT_IP'] ?? $_SERVER['HTTP_X_FORWARDED_FOR'] ?? 'unknown';
 
 if (!in_array($clientIP, $allowedIPs) && $clientIP !== gethostbyname(gethostname())) {
     http_response_code(403);
-    die('Access denied. This tool is only accessible from localhost.');
+    die('Access denied. This tool is only accessible from authorized IP addresses.');
 }
 
 // Master password for this tool (loaded from environment)
@@ -500,7 +500,7 @@ $pageTitle = 'Admin Creation Tool';
                 <i class="fas fa-shield-alt"></i>
                 <div>
                     <strong>SECURE ADMIN TOOL</strong><br>
-                    Localhost only • Password protected • Single use
+                    IP restricted • Password protected • Single use
                 </div>
             </div>
 

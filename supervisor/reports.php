@@ -6,6 +6,7 @@ require_once '../includes/EnvLoader.php';
 EnvLoader::load();
 include '../config/config.php';
 require_once '../includes/SubscriptionManager.php';
+require_once '../includes/SubscriptionCheck.php';
 
 // Start session
 if (session_status() == PHP_SESSION_NONE) {
@@ -18,7 +19,10 @@ if (!is_logged_in() || $_SESSION['user_role'] !== 'supervisor') {
     exit;
 }
 
-// Check subscription status
+// Check subscription status - redirect to expired page if subscription is not active
+requireActiveSubscription();
+
+// Check subscription status (keeping original logic for backward compatibility)
 $subscriptionManager = new SubscriptionManager();
 $libraryId = $_SESSION['library_id'];
 $hasActiveSubscription = $subscriptionManager->hasActiveSubscription($libraryId);
@@ -62,14 +66,14 @@ try {
     $stmt->execute([$libraryId]);
     $overdueBooks = $stmt->fetch()['total'];
     
-    // Get top 5 most borrowed books
+    // Get top 5 most borrowed books with author information
     $stmt = $db->prepare("
-        SELECT b.title, b.isbn, COUNT(br.id) as borrow_count
+        SELECT b.title, b.author_name, b.isbn, COUNT(br.id) as borrow_count
         FROM borrowings br
         JOIN books b ON br.book_id = b.id
         JOIN users u ON br.member_id = u.id
         WHERE u.library_id = ?
-        GROUP BY br.book_id
+        GROUP BY br.book_id, b.title, b.author_name, b.isbn
         ORDER BY borrow_count DESC
         LIMIT 5
     ");
@@ -121,6 +125,31 @@ $pageTitle = 'Reports';
     <link rel="stylesheet" href="css/supervisor_navbar.css">
     
     <style>
+        :root {
+            --primary-color: #0066cc; /* macOS deeper blue */
+            --primary-dark: #0052a3;
+            --secondary-color: #f8f9fa;
+            --success-color: #1b5e20; /* Deep green for active status */
+            --danger-color: #c62828; /* Deep red for error states */
+            --warning-color: #F39C12;
+            --info-color: #495057;
+            --light-color: #f8f9fa;
+            --dark-color: #212529;
+            --gray-100: #f8f9fa;
+            --gray-200: #e9ecef;
+            --gray-300: #dee2e6;
+            --gray-400: #ced4da;
+            --gray-500: #adb5bd;
+            --gray-600: #6c757d;
+            --gray-700: #495057;
+            --gray-800: #343a40;
+            --gray-900: #212529;
+            --border-radius: 12px;
+            --box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            --box-shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.15);
+            --transition: all 0.3s ease;
+        }
+        
         body {
             background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
             min-height: 100vh;
@@ -202,11 +231,39 @@ $pageTitle = 'Reports';
             box-shadow: 0 6px 20px rgba(52, 152, 219, 0.3);
         }
 
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+        }
+
         .stats-container {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            grid-template-columns: repeat(3, 1fr);
             gap: 1.5rem;
             margin-bottom: 2rem;
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+            .stats-container {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 480px) {
+            .stats-container {
+                grid-template-columns: 1fr;
+            }
         }
 
         .stat-card {
@@ -226,6 +283,7 @@ $pageTitle = 'Reports';
         .stat-card .icon {
             font-size: 2rem;
             margin-bottom: 1rem;
+            color: #3498DB;
         }
 
         .stat-card .number {
@@ -298,7 +356,7 @@ $pageTitle = 'Reports';
         .report-table th,
         .report-table td {
             padding: 0.75rem;
-            text-align: left;
+            text-align: center;
             border-bottom: 1px solid #dee2e6;
         }
 
@@ -323,11 +381,31 @@ $pageTitle = 'Reports';
             border-radius: 12px;
             padding: 1.5rem;
             box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            display: flex;
+            flex-direction: column;
+            transition: transform 0.3s ease;
+        }
+        
+        .report-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 6px 16px rgba(0,0,0,0.1);
         }
 
         .report-card h4 {
             color: #212529;
             margin-top: 0;
+            flex: 0 0 auto;
+        }
+        
+        .report-card p {
+            flex: 1 1 auto;
+            margin-bottom: 1rem;
+        }
+        
+        .report-card .btn {
+            margin-top: auto;
+            align-self: center;
+            justify-content: center;
         }
 
         .report-actions {
@@ -345,6 +423,8 @@ $pageTitle = 'Reports';
             transition: transform 0.3s ease;
             flex: 1;
             min-width: 200px;
+            display: flex;
+            flex-direction: column;
         }
 
         .action-card:hover {
@@ -356,35 +436,33 @@ $pageTitle = 'Reports';
             font-size: 2.5rem;
             margin-bottom: 1rem;
             color: #3498DB;
+            flex: 0 0 auto;
         }
 
         .action-card h4 {
             color: #212529;
             margin: 0 0 1rem 0;
+            flex: 0 0 auto;
         }
-
+        
+        .action-card p {
+            flex: 1 1 auto;
+            margin-bottom: 1rem;
+        }
+        
         .action-card .btn {
+            margin-top: auto;
             width: 100%;
             justify-content: center;
         }
 
         @media (max-width: 768px) {
-            .stats-container {
-                grid-template-columns: repeat(2, 1fr);
-            }
-            
             .report-grid {
                 grid-template-columns: 1fr;
             }
             
             .report-actions {
                 flex-direction: column;
-            }
-        }
-
-        @media (max-width: 480px) {
-            .stats-container {
-                grid-template-columns: 1fr;
             }
         }
     </style>
@@ -469,6 +547,7 @@ $pageTitle = 'Reports';
                     <thead>
                         <tr>
                             <th>Book Title</th>
+                            <th>Author</th>
                             <th>ISBN</th>
                             <th>Borrow Count</th>
                         </tr>
@@ -476,12 +555,13 @@ $pageTitle = 'Reports';
                     <tbody>
                         <?php if (empty($popularBooks)): ?>
                             <tr>
-                                <td colspan="3" style="text-align: center;">No borrowing data available</td>
+                                <td colspan="4" style="text-align: center;">No borrowing data available</td>
                             </tr>
                         <?php else: ?>
                             <?php foreach ($popularBooks as $book): ?>
                                 <tr>
                                     <td><?php echo htmlspecialchars($book['title']); ?></td>
+                                    <td><?php echo htmlspecialchars($book['author']); ?></td>
                                     <td><?php echo htmlspecialchars($book['isbn']); ?></td>
                                     <td><?php echo $book['borrow_count']; ?></td>
                                 </tr>
@@ -503,7 +583,7 @@ $pageTitle = 'Reports';
                     <p>Generate detailed reports on member information with export capabilities in CSV format.</p>
                     <a href="member_reports.php" class="btn btn-primary">
                         <i class="fas fa-file-alt"></i>
-                        Member Reports
+                        Generate Report
                     </a>
                 </div>
                 
@@ -512,7 +592,7 @@ $pageTitle = 'Reports';
                     <p>Analyze book inventory, borrowing patterns, and availability statistics.</p>
                     <a href="book_reports.php" class="btn btn-primary">
                         <i class="fas fa-file-alt"></i>
-                        Book Reports
+                        Generate Report
                     </a>
                 </div>
                 
@@ -539,7 +619,7 @@ $pageTitle = 'Reports';
                     </div>
                     <h4>Export Reports</h4>
                     <p>Download reports in PDF format for sharing and printing.</p>
-                    <button class="btn btn-primary" onclick="window.location.href='export_pdf.php'">
+                    <button class="btn btn-danger" onclick="window.location.href='export_pdf.php'">
                         <i class="fas fa-download"></i>
                         Export PDF
                     </button>
@@ -551,7 +631,7 @@ $pageTitle = 'Reports';
                     </div>
                     <h4>Export Data</h4>
                     <p>Export raw data in CSV format for further analysis.</p>
-                    <button class="btn btn-primary" onclick="window.location.href='export_csv.php'">
+                    <button class="btn btn-success" onclick="window.location.href='export_csv.php'">
                         <i class="fas fa-table"></i>
                         Export CSV
                     </button>

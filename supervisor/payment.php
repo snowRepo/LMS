@@ -367,6 +367,18 @@ $pageTitle = 'Payment - ' . $planDetails['name'];
             font-size: 1rem;
         }
         
+        /* Style for select elements to add space for dropdown arrow */
+        select.form-control {
+            padding-right: 2.5rem;
+            background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23495057' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+            background-repeat: no-repeat;
+            background-position: right 1rem center;
+            background-size: 1rem;
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+        }
+        
         .form-control:focus {
             outline: none;
             border-color: #3498DB;
@@ -463,7 +475,7 @@ $pageTitle = 'Payment - ' . $planDetails['name'];
                             </div>
                         </div>
                         <div style="margin-top: 0.5rem; color: #6c757d; font-size: 0.9rem;">
-                            Pay with MTN Mobile Money, Vodafone Cash, or Airtel Money
+                            Pay with MTN Mobile Money, Telecel Cash, or AirtelTigo Cash
                         </div>
                     </div>
                 </div>
@@ -608,13 +620,13 @@ $pageTitle = 'Payment - ' . $planDetails['name'];
                                     <select id="mobile_network" class="form-control">
                                         <option value="">Select Network</option>
                                         <option value="mtn">MTN Mobile Money</option>
-                                        <option value="vodafone">Vodafone Cash</option>
-                                        <option value="airtel">Airtel Money</option>
+                                        <option value="vodafone">Telecel Cash</option>
+                                        <option value="airtel">AirtelTigo Cash</option>
                                     </select>
                                 </div>
                                 <div class="form-group">
                                     <label for="mobile_number">Mobile Number</label>
-                                    <input type="tel" id="mobile_number" class="form-control" placeholder="024 XXX XXXX">
+                                    <input type="tel" id="mobile_number" class="form-control" placeholder="XXXXXXXXXX">
                                 </div>
                                 <div class="form-group">
                                     <button type="button" class="btn btn-primary" id="processMobilePayment">

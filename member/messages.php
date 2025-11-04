@@ -5,6 +5,7 @@ define('LMS_ACCESS', true);
 require_once '../includes/EnvLoader.php';
 EnvLoader::load();
 include '../config/config.php';
+require_once '../includes/SubscriptionCheck.php';
 
 // Start session
 if (session_status() == PHP_SESSION_NONE) {
@@ -16,6 +17,9 @@ if (!is_logged_in() || $_SESSION['user_role'] !== 'member') {
     header('Location: ../login.php');
     exit();
 }
+
+// Check subscription status - redirect to expired page if subscription is not active
+requireActiveSubscription();
 
 try {
     $db = Database::getInstance()->getConnection();
@@ -111,45 +115,24 @@ try {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Messages - LMS</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="css/toast.css">
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <style>
-        :root {
-            --primary-color: #3498db;
-            --primary-dark: #2980b9;
-            --secondary-color: #f0f0f0;
-            --success-color: #27ae60;
-            --danger-color: #e74c3c;
-            --warning-color: #f39c12;
-            --info-color: #3498db;
-            --light-color: #f8f9fa;
-            --dark-color: #2c3e50;
-            --gray-100: #f8f9fa;
-            --gray-200: #e9ecef;
-            --gray-300: #dee2e6;
-            --gray-400: #ced4da;
-            --gray-500: #adb5bd;
-            --gray-600: #6c757d;
-            --gray-700: #495057;
-            --gray-800: #343a40;
-            --gray-900: #212529;
-            --border-radius: 12px;
-            --box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-            --box-shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.15);
-            --transition: all 0.3s ease;
-        }
-        
         body {
-            background: linear-gradient(135deg, var(--gray-100) 0%, #e9ecef 100%);
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
             min-height: 100vh;
             margin: 0;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            padding-top: 0;
+            padding-top: 0; /* Remove padding to ensure navbar is at the very top */
         }
         
+        /* Ensure no default margin on body */
+        html, body {
+            margin: 0;
+            padding: 0;
+        }
+
         .container {
             max-width: 1200px;
             margin: 0 auto;
@@ -162,20 +145,20 @@ try {
         }
 
         .page-header h1 {
-            color: var(--gray-900);
+            color: #212529;
             font-size: 2rem;
             margin-bottom: 0.5rem;
         }
 
         .page-header p {
-            color: var(--gray-600);
+            color: #6c757d;
             font-size: 1.1rem;
         }
 
         .content-card {
             background: #ffffff;
-            border-radius: var(--border-radius);
-            box-shadow: var(--box-shadow);
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
             padding: 2rem;
             margin-bottom: 2rem;
             border: none;
@@ -187,28 +170,39 @@ try {
             align-items: center;
             margin-bottom: 1.5rem;
             padding-bottom: 1rem;
-            border-bottom: 1px solid var(--gray-200);
+            border-bottom: 1px solid #e9ecef;
         }
 
         .card-header h2 {
-            color: var(--gray-900);
+            color: #212529;
             margin: 0;
             font-size: 1.5rem;
         }
         
-        .btn-primary {
-            background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 0.75rem 1.5rem;
             border: none;
-            padding: 0.6rem 1.2rem;
-            font-weight: 600;
             border-radius: 8px;
-            transition: var(--transition);
-            box-shadow: 0 4px 8px rgba(52, 152, 219, 0.3);
+            text-decoration: none;
+            font-size: 0.95rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+            color: white;
+            box-shadow: 0 4px 6px rgba(52, 152, 219, 0.2);
         }
         
         .btn-primary:hover {
+            background: linear-gradient(135deg, #2980b9 0%, #2573A7 100%);
             transform: translateY(-2px);
-            box-shadow: 0 6px 12px rgba(52, 152, 219, 0.4);
+            box-shadow: 0 6px 12px rgba(52, 152, 219, 0.3);
         }
         
         .btn-primary:active {
@@ -217,8 +211,8 @@ try {
 
         .conversation-item {
             padding: 1.25rem;
-            border-bottom: 1px solid var(--gray-200);
-            transition: var(--transition);
+            border-bottom: 1px solid #e9ecef;
+            transition: all 0.3s ease;
             text-decoration: none;
             color: inherit;
             display: block;
@@ -227,14 +221,14 @@ try {
         }
 
         .conversation-item:hover {
-            background: var(--gray-100);
+            background: #f8f9fa;
             transform: translateY(-2px);
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
         }
 
         .conversation-item.unread {
-            background: rgba(142, 68, 173, 0.05);
-            border-left: 3px solid var(--primary-color);
+            background: rgba(52, 152, 219, 0.05);
+            border-left: 3px solid #3498db;
         }
 
         .conversation-header {
@@ -246,17 +240,17 @@ try {
         
         .conversation-sender {
             font-weight: 600;
-            color: var(--gray-900);
+            color: #212529;
             font-size: 1.1rem;
         }
 
         .conversation-time {
             font-size: 0.85rem;
-            color: var(--gray-600);
+            color: #6c757d;
         }
 
         .conversation-preview {
-            color: var(--gray-600);
+            color: #6c757d;
             font-size: 0.95rem;
             overflow: hidden;
             text-overflow: ellipsis;
@@ -268,7 +262,7 @@ try {
         .unread-badge {
             font-size: 0.7rem;
             vertical-align: middle;
-            background-color: var(--primary-color);
+            background-color: #3498db;
             color: white;
             border-radius: 50%;
             padding: 0;
@@ -295,76 +289,151 @@ try {
         .no-conversations {
             text-align: center;
             padding: 3rem;
-            color: var(--gray-600);
+            color: #6c757d;
         }
 
         .no-conversations i {
             font-size: 3rem;
             margin-bottom: 1rem;
-            color: var(--gray-400);
+            color: #ced4da;
         }
         
         /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 10000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+        }
+
         .modal-content {
+            background-color: #fff;
+            margin: 10% auto;
+            padding: 0;
             border-radius: 12px;
-            border: none;
-            box-shadow: var(--box-shadow-lg);
+            width: 90%;
+            max-width: 700px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+            animation: modalFadeIn 0.3s ease;
         }
-        
+
+        @keyframes modalFadeIn {
+            from { opacity: 0; transform: translateY(-30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
         .modal-header {
-            background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem;
+            border-bottom: 1px solid #e9ecef;
+            background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
             color: white;
-            border-radius: 12px 12px 0 0 !important;
+            border-radius: 12px 12px 0 0;
+        }
+
+        .modal-header h2 {
+            margin: 0;
+            color: white;
+            font-size: 1.25rem;
+        }
+
+        .close {
+            background: none;
             border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: white;
+            transition: color 0.3s;
+            width: 25px;
+            height: 25px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
         }
-        
-        .modal-title {
-            font-weight: 600;
+
+        .close:hover {
+            background-color: rgba(255, 255, 255, 0.2);
         }
-        
-        .btn-close {
-            filter: invert(1);
+
+        .modal-body {
+            padding: 1rem;
         }
-        
-        .form-label {
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.3rem;
             font-weight: 500;
-            color: var(--gray-700);
+            color: #495057;
+            font-size: 0.9rem;
         }
-        
-        .form-control, .form-select {
-            border: 2px solid var(--gray-300);
-            border-radius: 8px;
-            padding: 0.75rem;
-            transition: var(--transition);
+
+        .form-group label.required::after {
+            content: " *";
+            color: #e74c3c;
         }
-        
-        .form-control:focus, .form-select:focus {
-            border-color: var(--primary-color);
-            box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.25);
+
+        .form-control {
+            width: 100%;
+            padding: 0.5rem;
+            border: 2px solid #dee2e6;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            transition: border-color 0.3s;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            box-sizing: border-box;
         }
-        
+
+        .form-control:focus {
+            border-color: #3498db;
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.25);
+        }
+
         .modal-footer {
-            background-color: var(--gray-100);
-            border-radius: 0 0 12px 12px !important;
-            border: none;
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.5rem;
+            padding: 1rem;
+            border-top: 1px solid #e9ecef;
+            background-color: #f8f9fa;
+            border-radius: 0 0 12px 12px;
         }
-        
-        .btn-secondary {
-            background-color: var(--gray-300);
+
+        .btn {
+            padding: 0.5rem 1rem;
             border: none;
-            color: var(--gray-700);
+            border-radius: 6px;
+            font-size: 0.9rem;
             font-weight: 500;
-            padding: 0.6rem 1.2rem;
-            border-radius: 8px;
-            transition: var(--transition);
+            cursor: pointer;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
         }
-        
+
+        .btn-secondary {
+            background-color: #e9ecef;
+            color: #495057;
+        }
+
         .btn-secondary:hover {
-            background-color: var(--gray-400);
+            background-color: #dee2e6;
             transform: translateY(-2px);
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
         }
-        
+
         .btn-secondary:active {
             transform: translateY(0);
         }
@@ -377,6 +446,10 @@ try {
             .content-card {
                 padding: 1.5rem;
             }
+            
+            .modal-content {
+                max-width: 95%;
+            }
         }
     </style>
 </head>
@@ -388,15 +461,15 @@ try {
     
     <div class="container">
         <div class="page-header">
-            <h1><i class="fas fa-envelope me-2"></i> Messages</h1>
+            <h1><i class="fas fa-envelope"></i> Messages</h1>
             <p>Manage your communications</p>
         </div>
         
         <div class="content-card">
             <div class="card-header">
                 <h2>Conversations</h2>
-                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#composeModal">
-                    <i class="fas fa-plus me-1"></i> New Message
+                <button class="btn btn-primary" id="composeBtn">
+                    <i class="fas fa-plus"></i> New Message
                 </button>
             </div>
             
@@ -447,45 +520,88 @@ try {
     </div>
 
     <!-- Compose Modal -->
-    <div class="modal fade" id="composeModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-lg">
-            <div class="modal-content">
-                <div class="modal-header bg-primary text-white">
-                    <h5 class="modal-title">Compose New Message</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <form id="composeForm" onsubmit="sendComposeMessage(); return false;">
-                    <div class="modal-body">
-                        <!-- Recipient Type Selection -->
-                        <div class="mb-4">
-                            <label for="recipient_type" class="form-label fw-bold">Recipient:</label>
-                            <select class="form-select" id="recipient_type" name="recipient_type" required>
-                                <option value="all_librarians">All Librarians</option>
-                            </select>
-                        </div>
-
-                        <!-- Subject -->
-                        <div class="mb-3">
-                            <label for="subject" class="form-label fw-bold">Subject:</label>
-                            <input type="text" class="form-control" id="subject" name="subject" required>
-                        </div>
-
-                        <!-- Message -->
-                        <div class="mb-2">
-                            <label for="message_body" class="form-label fw-bold">Message:</label>
-                            <textarea class="form-control" id="message_body" name="message_body" rows="4" required></textarea>
-                        </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                        <button type="submit" class="btn btn-primary">Send Message</button>
-                    </div>
-                </form>
+    <div class="modal" id="composeModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2><i class="fas fa-plus"></i> Compose New Message</h2>
+                <button class="close" id="closeModal">&times;</button>
             </div>
+            <form id="composeForm">
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="recipient_type" class="required">Recipient:</label>
+                        <select class="form-control" id="recipient_type" name="recipient_type" required>
+                            <option value="all_librarians">All Librarians</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="subject" class="required">Subject:</label>
+                        <input type="text" class="form-control" id="subject" name="subject" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="message_body" class="required">Message:</label>
+                        <textarea class="form-control" id="message_body" name="message_body" rows="4" required></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" id="cancelBtn">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Send Message</button>
+                </div>
+            </form>
         </div>
     </div>
 
     <script>
+        // Modal functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            const composeBtn = document.getElementById('composeBtn');
+            const closeModal = document.getElementById('closeModal');
+            const cancelBtn = document.getElementById('cancelBtn');
+            const composeModal = document.getElementById('composeModal');
+            const composeForm = document.getElementById('composeForm');
+            
+            // Open modal
+            composeBtn.addEventListener('click', function() {
+                console.log('Opening modal');
+                composeModal.style.display = 'block';
+            });
+            
+            // Close modal
+            function closeComposeModal() {
+                console.log('Closing modal');
+                composeModal.style.display = 'none';
+                composeForm.reset();
+                console.log('Modal closed and form reset');
+            }
+            
+            closeModal.addEventListener('click', function() {
+                console.log('Close button clicked');
+                closeComposeModal();
+            });
+            
+            cancelBtn.addEventListener('click', function() {
+                console.log('Cancel button clicked');
+                closeComposeModal();
+            });
+            
+            // Close modal when clicking outside
+            window.addEventListener('click', function(event) {
+                if (event.target === composeModal) {
+                    console.log('Clicked outside modal');
+                    closeComposeModal();
+                }
+            });
+            
+            // Handle form submission
+            composeForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                console.log('Form submitted');
+                sendComposeMessage();
+            });
+        });
+        
         function sendComposeMessage() {
             const form = document.getElementById('composeForm');
             const formData = new FormData(form);
@@ -509,25 +625,30 @@ try {
             })
             .then(response => response.json())
             .then(data => {
+                console.log('Server response:', data);
                 if (data.error) {
-                    showToast(data.error, 'error');
-                } else {
-                    showToast(data.message, 'success');
-                    const modal = bootstrap.Modal.getInstance(document.getElementById('composeModal'));
-                    modal.hide();
+                    showToast('Error: ' + data.error, 'error');
+                } else if (data.success) {
+                    showToast(data.message || 'Message sent successfully', 'success');
+                    // Close modal and redirect
+                    document.getElementById('composeModal').style.display = 'none';
                     form.reset();
-                    // Reload the page to show the new conversation
                     setTimeout(() => {
-                        location.reload();
-                    }, 1000);
+                        window.location.href = 'messages.php';
+                    }, 1500);
+                } else {
+                    showToast('Unexpected response from server', 'error');
                 }
             })
             .catch(error => {
                 console.error('Error:', error);
-                showToast('Error sending message', 'error');
+                showToast('Network error: ' + error.message, 'error');
+                // Force close modal on network error
+                document.getElementById('composeModal').style.display = 'none';
+                form.reset();
             })
             .finally(() => {
-                // Restore button state
+                // Always restore button state
                 submitBtn.innerHTML = originalText;
                 submitBtn.disabled = false;
             });

@@ -6,6 +6,7 @@ require_once '../includes/EnvLoader.php';
 EnvLoader::load();
 include '../config/config.php';
 require_once '../includes/SubscriptionManager.php';
+require_once '../includes/SubscriptionCheck.php';
 
 // Start session
 if (session_status() == PHP_SESSION_NONE) {
@@ -18,15 +19,11 @@ if (!is_logged_in() || $_SESSION['user_role'] !== 'librarian') {
     exit;
 }
 
-// Check subscription status
-$subscriptionManager = new SubscriptionManager();
-$libraryId = $_SESSION['library_id'];
-$hasActiveSubscription = $subscriptionManager->hasActiveSubscription($libraryId);
+// Check subscription status - redirect to expired page if subscription is not active
+requireActiveSubscription();
 
-if (!$hasActiveSubscription) {
-    header('Location: ../subscription.php');
-    exit;
-}
+// Get library ID for use in queries
+$libraryId = $_SESSION['library_id'];
 
 // Handle search and pagination
 $search = isset($_GET['search']) ? trim($_GET['search']) : '';

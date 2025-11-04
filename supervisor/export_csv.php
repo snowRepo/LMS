@@ -33,7 +33,11 @@ if (!$hasActiveSubscription) {
 try {
     $db = Database::getInstance()->getConnection();
     
-    // Get report data
+    // Get total supervisors count
+    $stmt = $db->prepare("SELECT COUNT(*) as total FROM users WHERE library_id = ? AND role = 'supervisor'");
+    $stmt->execute([$libraryId]);
+    $totalSupervisors = $stmt->fetch()['total'];
+    
     // Get total members count
     $stmt = $db->prepare("SELECT COUNT(*) as total FROM users WHERE library_id = ? AND role = 'member'");
     $stmt->execute([$libraryId]);
@@ -49,22 +53,20 @@ try {
     $stmt->execute([$libraryId]);
     $totalLibrarians = $stmt->fetch()['total'];
     
-    // Get active members (attended today)
-    $stmt = $db->prepare("SELECT COUNT(DISTINCT user_id) as total FROM attendance WHERE library_id = ? AND attendance_date = CURDATE()");
+    // Get borrowing statistics
+    $stmt = $db->prepare("SELECT COUNT(*) as total FROM borrowings br JOIN users u ON br.member_id = u.id WHERE u.library_id = ?");
     $stmt->execute([$libraryId]);
-    $activeMembersToday = $stmt->fetch()['total'];
+    $totalBorrowings = $stmt->fetch()['total'];
     
-    // Get borrowed books count (active status)
     $stmt = $db->prepare("SELECT COUNT(*) as total FROM borrowings br JOIN users u ON br.member_id = u.id WHERE u.library_id = ? AND br.status = 'active'");
     $stmt->execute([$libraryId]);
-    $borrowedBooks = $stmt->fetch()['total'];
+    $activeBorrowings = $stmt->fetch()['total'];
     
-    // Get overdue books count
     $stmt = $db->prepare("SELECT COUNT(*) as total FROM borrowings br JOIN users u ON br.member_id = u.id WHERE u.library_id = ? AND br.status = 'overdue'");
     $stmt->execute([$libraryId]);
-    $overdueBooks = $stmt->fetch()['total'];
+    $dueBooks = $stmt->fetch()['total'];
     
-    // Get top 5 most borrowed books
+    // Get top 3 most borrowed books
     $stmt = $db->prepare("
         SELECT b.title, b.isbn, COUNT(br.id) as borrow_count
         FROM borrowings br
@@ -73,55 +75,63 @@ try {
         WHERE u.library_id = ?
         GROUP BY br.book_id
         ORDER BY borrow_count DESC
-        LIMIT 5
+        LIMIT 3
     ");
     $stmt->execute([$libraryId]);
     $popularBooks = $stmt->fetchAll();
     
-    // Get member attendance statistics for the last 7 days
+    // Get member attendance data with count
     $stmt = $db->prepare("
         SELECT 
-            DATE(attendance_date) as date,
-            COUNT(DISTINCT user_id) as attendance_count
-        FROM attendance 
-        WHERE library_id = ? 
-        AND attendance_date >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
-        GROUP BY DATE(attendance_date)
-        ORDER BY DATE(attendance_date)
+            u.user_id,
+            u.first_name,
+            u.last_name,
+            COUNT(a.user_id) as attendance_count
+        FROM users u
+        LEFT JOIN attendance a ON u.id = a.user_id AND a.library_id = ?
+        WHERE u.library_id = ? AND u.role = 'member'
+        GROUP BY u.id, u.user_id, u.first_name, u.last_name
+        ORDER BY attendance_count DESC
     ");
-    $stmt->execute([$libraryId]);
-    $attendanceData = $stmt->fetchAll();
+    $stmt->execute([$libraryId, $libraryId]);
+    $memberAttendance = $stmt->fetchAll();
     
     // Create CSV content
     $csvContent = "Library Management System - Report Export\n";
     $csvContent .= "Generated on: " . date('Y-m-d H:i:s T') . "\n";
     $csvContent .= "Library ID: " . $libraryId . "\n\n";
     
-    // Summary statistics
-    $csvContent .= "Summary Statistics\n";
+    // Overall Library Data
+    $csvContent .= "Overall Library Data\n";
     $csvContent .= "Metric,Value\n";
-    $csvContent .= "Total Members," . $totalMembers . "\n";
-    $csvContent .= "Total Books," . $totalBooks . "\n";
+    $csvContent .= "Total Supervisors," . $totalSupervisors . "\n";
     $csvContent .= "Total Librarians," . $totalLibrarians . "\n";
-    $csvContent .= "Active Members Today," . $activeMembersToday . "\n";
-    $csvContent .= "Borrowed Books," . $borrowedBooks . "\n";
-    $csvContent .= "Overdue Books," . $overdueBooks . "\n\n";
+    $csvContent .= "Total Members," . $totalMembers . "\n";
+    $csvContent .= "Total Books," . $totalBooks . "\n\n";
     
-    // Popular books
-    $csvContent .= "Most Popular Books\n";
+    // Borrowing Section
+    $csvContent .= "Borrowing Statistics\n";
+    $csvContent .= "Metric,Value\n";
+    $csvContent .= "Total Borrowings," . $totalBorrowings . "\n";
+    $csvContent .= "Active Borrowings," . $activeBorrowings . "\n";
+    $csvContent .= "Due Books," . $dueBooks . "\n\n";
+    
+    // Attendance Section
+    $csvContent .= "Member Attendance\n";
+    $csvContent .= "Name,Attendance Count\n";
+    foreach ($memberAttendance as $member) {
+        $csvContent .= "\"" . str_replace('"', '""', $member['first_name'] . ' ' . $member['last_name']) . "\",";
+        $csvContent .= $member['attendance_count'] . "\n";
+    }
+    $csvContent .= "\n";
+    
+    // Popular Books
+    $csvContent .= "Most Popular Books (Top 3)\n";
     $csvContent .= "Title,ISBN,Borrow Count\n";
     foreach ($popularBooks as $book) {
         $csvContent .= "\"" . str_replace('"', '""', $book['title']) . "\",";
         $csvContent .= "\"" . str_replace('"', '""', $book['isbn']) . "\",";
         $csvContent .= $book['borrow_count'] . "\n";
-    }
-    $csvContent .= "\n";
-    
-    // Attendance data
-    $csvContent .= "Weekly Attendance Trend\n";
-    $csvContent .= "Date,Attendance Count\n";
-    foreach ($attendanceData as $data) {
-        $csvContent .= $data['date'] . "," . $data['attendance_count'] . "\n";
     }
     
     // Set headers for CSV download

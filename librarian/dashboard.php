@@ -5,6 +5,7 @@ define('LMS_ACCESS', true);
 require_once '../includes/EnvLoader.php';
 EnvLoader::load();
 include '../config/config.php';
+require_once '../includes/SubscriptionCheck.php';
 
 // Start session
 if (session_status() == PHP_SESSION_NONE) {
@@ -16,6 +17,9 @@ if (!is_logged_in() || $_SESSION['user_role'] !== 'librarian') {
     header('Location: ../login.php');
     exit;
 }
+
+// Check subscription status - redirect to expired page if subscription is not active
+requireActiveSubscription();
 
 // Initialize database connection
 $db = Database::getInstance()->getConnection();
@@ -118,20 +122,20 @@ $pageTitle = 'Librarian Dashboard';
             margin-top: 30px; /* Further reduced margin to decrease space between navbar and heading */
         }
         
-        .dashboard-header {
+        .page-header {
             text-align: center;
             margin-bottom: 2rem;
         }
         
-        .dashboard-header h1 {
-            color: #495057;
-            font-size: 2.2rem;
+        .page-header h1 {
+            color: #212529;
+            font-size: 2rem;
             margin-bottom: 0.5rem;
         }
         
-        .dashboard-header p {
+        .page-header p {
             color: #6c757d;
-            font-size: 1.2rem;
+            font-size: 1.1rem;
         }
         
         /* Stat Cards Grid */
@@ -362,7 +366,7 @@ $pageTitle = 'Librarian Dashboard';
     <?php include 'includes/librarian_navbar.php'; ?>
     
     <div class="dashboard-container">
-        <div class="dashboard-header">
+        <div class="page-header">
             <h1><i class="fas fa-book"></i> Librarian Dashboard</h1>
             <p>Welcome back! Here's your library overview</p>
         </div>

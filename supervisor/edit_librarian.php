@@ -70,6 +70,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $phone = trim($_POST['phone']);
         $username = trim($_POST['username']);
         $address = trim($_POST['address']);
+        $dateOfBirth = !empty($_POST['date_of_birth']) ? trim($_POST['date_of_birth']) : null;
         $status = $_POST['status'];
         
         // Validate required fields
@@ -79,12 +80,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Update librarian in database
             $stmt = $db->prepare("
                 UPDATE users 
-                SET first_name = ?, last_name = ?, email = ?, phone = ?, username = ?, address = ?, status = ?, updated_at = NOW()
+                SET first_name = ?, last_name = ?, email = ?, phone = ?, username = ?, address = ?, date_of_birth = ?, status = ?, updated_at = NOW()
                 WHERE user_id = ? AND library_id = ?
             ");
             
             $result = $stmt->execute([
-                $firstName, $lastName, $email, $phone, $username, $address, $status, $librarianId, $libraryId
+                $firstName, $lastName, $email, $phone, $username, $address, $dateOfBirth, $status, $librarianId, $libraryId
             ]);
             
             if ($result) {
@@ -240,6 +241,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             padding-right: 2.5rem;
         }
         
+        /* Readonly field styling */
+        .form-control[readonly] {
+            background-color: #f8f9fa;
+            color: #6c757d;
+            cursor: not-allowed;
+        }
+        
         /* Remove padding-right for non-select elements */
         input.form-control,
         textarea.form-control {
@@ -331,12 +339,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <div class="form-row">
                         <div class="form-group">
                             <label for="first_name">First Name *</label>
-                            <input type="text" id="first_name" name="first_name" class="form-control" value="<?php echo htmlspecialchars($librarian['first_name']); ?>" required>
+                            <input type="text" id="first_name" name="first_name" class="form-control" value="<?php echo htmlspecialchars($librarian['first_name']); ?>" required readonly>
                         </div>
                         
                         <div class="form-group">
                             <label for="last_name">Last Name *</label>
-                            <input type="text" id="last_name" name="last_name" class="form-control" value="<?php echo htmlspecialchars($librarian['last_name']); ?>" required>
+                            <input type="text" id="last_name" name="last_name" class="form-control" value="<?php echo htmlspecialchars($librarian['last_name']); ?>" required readonly>
                         </div>
                     </div>
                     
@@ -355,7 +363,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <div class="form-row">
                         <div class="form-group">
                             <label for="username">Username *</label>
-                            <input type="text" id="username" name="username" class="form-control" value="<?php echo htmlspecialchars($librarian['username']); ?>" required>
+                            <input type="text" id="username" name="username" class="form-control" value="<?php echo htmlspecialchars($librarian['username']); ?>" required readonly>
                         </div>
                         
                         <div class="form-group">
@@ -371,9 +379,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </div>
                     </div>
                     
-                    <div class="form-group">
-                        <label for="address">Address</label>
-                        <textarea id="address" name="address" class="form-control" rows="3"><?php echo htmlspecialchars($librarian['address'] ?? ''); ?></textarea>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="address">Address</label>
+                            <textarea id="address" name="address" class="form-control" rows="3"><?php echo htmlspecialchars($librarian['address'] ?? ''); ?></textarea>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="date_of_birth">Date of Birth</label>
+                            <input type="date" id="date_of_birth" name="date_of_birth" class="form-control" 
+                                   value="<?php echo !empty($librarian['date_of_birth']) ? htmlspecialchars($librarian['date_of_birth']) : ''; ?>">
+                        </div>
                     </div>
                 </div>
                 

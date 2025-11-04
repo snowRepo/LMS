@@ -5,6 +5,7 @@ define('LMS_ACCESS', true);
 require_once '../includes/EnvLoader.php';
 EnvLoader::load();
 include '../config/config.php';
+require_once '../includes/SubscriptionCheck.php';
 require_once '../includes/SubscriptionManager.php';
 
 // Start session
@@ -18,15 +19,8 @@ if (!is_logged_in() || $_SESSION['user_role'] !== 'librarian') {
     exit();
 }
 
-// Check subscription status
-$subscriptionManager = new SubscriptionManager();
-$libraryId = $_SESSION['library_id'];
-$hasActiveSubscription = $subscriptionManager->hasActiveSubscription($libraryId);
-
-if (!$hasActiveSubscription) {
-    header('Location: ../subscription.php');
-    exit;
-}
+// Check subscription status - redirect to expired page if subscription is not active
+requireActiveSubscription();
 
 // Get conversation ID and sender ID from URL
 $conversationId = $_GET['id'] ?? '';
@@ -91,12 +85,12 @@ $pageTitle = 'Conversation' . ($senderName ? ' with ' . $senderName : '');
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?php echo $pageTitle; ?> - LMS</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="css/toast.css">
     <style>
         :root {
             --primary-color: #3498db;
+            --primary-color-25: rgba(52, 152, 219, 0.25);
             --primary-dark: #2980b9;
             --secondary-color: #f0f0f0;
             --success-color: #27ae60;
@@ -125,7 +119,7 @@ $pageTitle = 'Conversation' . ($senderName ? ' with ' . $senderName : '');
             min-height: 100vh;
             margin: 0;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            padding-top: 0;
+            padding-top: 70px; /* Added padding to prevent content from hiding under navbar */
             overflow: hidden; /* Prevent body scrolling */
         }
         
@@ -133,7 +127,7 @@ $pageTitle = 'Conversation' . ($senderName ? ' with ' . $senderName : '');
             max-width: 1200px;
             margin: 0 auto;
             padding: 2rem;
-            height: 100vh; /* Full viewport height */
+            height: calc(100vh - 70px); /* Adjusted height to account for padding-top */
             display: flex;
             flex-direction: column;
         }
@@ -162,6 +156,9 @@ $pageTitle = 'Conversation' . ($senderName ? ' with ' . $senderName : '');
             padding: 2rem;
             margin-bottom: 2rem;
             border: none;
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
         }
 
         .conversation-header {
@@ -226,7 +223,7 @@ $pageTitle = 'Conversation' . ($senderName ? ' with ' . $senderName : '');
             flex-direction: column;
             gap: 16px;
             padding: 24px;
-            height: calc(100vh - 350px); /* Adjusted height */
+            height: calc(100vh - 420px); /* Adjusted height */
             overflow-y: auto;
             background-color: #f8f9fa;
             border-radius: 12px;
@@ -280,7 +277,22 @@ $pageTitle = 'Conversation' . ($senderName ? ' with ' . $senderName : '');
         
         .form-control:focus {
             border-color: var(--primary-color);
-            box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.25);
+            box-shadow: 0 0 0 3px var(--primary-color-25); /* Using primary color with 25% opacity */
+            outline: none; /* Remove default browser outline */
+        }
+        
+        #message-input {
+            border: 2px solid var(--gray-300);
+            border-radius: 8px;
+            padding: 12px 16px;
+            transition: var(--transition);
+            font-size: 1rem;
+        }
+        
+        #message-input:focus {
+            border-color: var(--primary-color) !important;
+            box-shadow: 0 0 0 3px var(--primary-color-25) !important; /* Using primary color with 25% opacity */
+            outline: none !important; /* Remove default browser outline */
         }
         
         .btn-primary {
@@ -294,6 +306,8 @@ $pageTitle = 'Conversation' . ($senderName ? ' with ' . $senderName : '');
             display: flex;
             align-items: center;
             gap: 8px;
+            cursor: pointer;
+            color: white;
         }
         
         .btn-primary:hover {
@@ -314,10 +328,18 @@ $pageTitle = 'Conversation' . ($senderName ? ' with ' . $senderName : '');
             color: var(--gray-600);
         }
         
-        .spinner-border {
+        .spinner {
             width: 3rem;
             height: 3rem;
-            border-width: 0.25em;
+            border: 0.25em solid rgba(52, 152, 219, 0.2);
+            border-top: 0.25em solid var(--primary-color);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
         
         #loading-indicator {
@@ -326,16 +348,87 @@ $pageTitle = 'Conversation' . ($senderName ? ' with ' . $senderName : '');
             left: 50%;
             transform: translate(-50%, -50%);
             z-index: 9999;
+            display: none;
         }
         
         .alert {
             border-radius: 8px;
             box-shadow: var(--box-shadow);
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+        
+        .alert-danger {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .d-flex {
+            display: flex;
+        }
+        
+        .gap-2 {
+            gap: 0.5rem;
+        }
+        
+        .flex-grow-1 {
+            flex-grow: 1;
+        }
+        
+        .position-fixed {
+            position: fixed;
+        }
+        
+        .top-50 {
+            top: 50%;
+        }
+        
+        .start-50 {
+            left: 50%;
+        }
+        
+        .translate-middle {
+            transform: translate(-50%, -50%);
+        }
+        
+        .visually-hidden {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
+        }
+        
+        .mt-3 {
+            margin-top: 1rem;
+        }
+        
+        .py-5 {
+            padding-top: 3rem;
+            padding-bottom: 3rem;
+        }
+        
+        .text-center {
+            text-align: center;
+        }
+        
+        .text-muted {
+            color: var(--gray-600);
         }
         
         @media (max-width: 768px) {
+            body {
+                padding-top: 60px; /* Adjusted for mobile */
+            }
+            
             .container {
                 padding: 1rem;
+                height: calc(100vh - 60px); /* Adjusted for mobile */
             }
             
             .content-card {
@@ -343,7 +436,7 @@ $pageTitle = 'Conversation' . ($senderName ? ' with ' . $senderName : '');
             }
             
             #messages-container {
-                height: calc(100vh - 300px);
+                height: calc(100vh - 350px);
                 padding: 16px;
             }
             
@@ -383,7 +476,7 @@ $pageTitle = 'Conversation' . ($senderName ? ' with ' . $senderName : '');
                 <div id="messages-container">
                     <!-- Messages will be loaded here via JavaScript -->
                     <div class="loading-container" id="loading-messages">
-                        <div class="spinner-border text-primary" role="status">
+                        <div class="spinner" role="status">
                             <span class="visually-hidden">Loading...</span>
                         </div>
                         <p class="mt-3">Loading messages...</p>
@@ -406,15 +499,14 @@ $pageTitle = 'Conversation' . ($senderName ? ' with ' . $senderName : '');
     </div>
 
     <!-- Loading Indicator -->
-    <div id="loading-indicator" class="position-fixed top-50 start-50 translate-middle" style="display: none; z-index: 9999;">
-        <div class="spinner-border text-primary" role="status">
+    <div id="loading-indicator" class="position-fixed top-50 start-50 translate-middle">
+        <div class="spinner" role="status">
             <span class="visually-hidden">Loading...</span>
         </div>
     </div>
 
-    <!-- Bootstrap JS and dependencies -->
+    <!-- jQuery (needed for AJAX) -->
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     
     <script>
         // Toast Notification Functions

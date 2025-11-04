@@ -5,6 +5,7 @@ define('LMS_ACCESS', true);
 require_once '../includes/EnvLoader.php';
 EnvLoader::load();
 include '../config/config.php';
+require_once '../includes/SubscriptionCheck.php';
 
 // Start session
 if (session_status() == PHP_SESSION_NONE) {
@@ -16,6 +17,9 @@ if (!is_logged_in() || $_SESSION['user_role'] !== 'member') {
     header('Location: ../login.php');
     exit;
 }
+
+// Check subscription status - redirect to expired page if subscription is not active
+requireActiveSubscription();
 
 // Initialize database connection
 $db = Database::getInstance()->getConnection();
@@ -127,14 +131,14 @@ $pageTitle = 'Member Dashboard';
         }
         
         .dashboard-header h1 {
-            color: #495057;
-            font-size: 2.2rem;
+            color: #212529;
+            font-size: 2rem;
             margin-bottom: 0.5rem;
         }
         
         .dashboard-header p {
             color: #6c757d;
-            font-size: 1.2rem;
+            font-size: 1.1rem;
         }
         
         /* Library Info Card */

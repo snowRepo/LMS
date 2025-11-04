@@ -1,9 +1,6 @@
 <?php
 define('LMS_ACCESS', true);
 
-// Set the default timezone to match your system
-date_default_timezone_set('Africa/Accra'); // Change this to your actual timezone
-
 // Load configuration
 require_once '../includes/EnvLoader.php';
 EnvLoader::load();

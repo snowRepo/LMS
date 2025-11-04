@@ -5,6 +5,7 @@ define('LMS_ACCESS', true);
 require_once '../includes/EnvLoader.php';
 EnvLoader::load();
 include '../config/config.php';
+require_once '../includes/SubscriptionCheck.php';
 require_once '../includes/SubscriptionManager.php';
 
 // Start session
@@ -18,15 +19,8 @@ if (!is_logged_in() || $_SESSION['user_role'] !== 'librarian') {
     exit();
 }
 
-// Check subscription status
-$subscriptionManager = new SubscriptionManager();
-$libraryId = $_SESSION['library_id'];
-$hasActiveSubscription = $subscriptionManager->hasActiveSubscription($libraryId);
-
-if (!$hasActiveSubscription) {
-    header('Location: ../subscription.php');
-    exit;
-}
+// Check subscription status - redirect to expired page if subscription is not active
+requireActiveSubscription();
 
 try {
     $db = Database::getInstance()->getConnection();
@@ -121,11 +115,9 @@ try {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Messages - LMS</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="css/toast.css">
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <style>
         :root {
             --primary-color: #3498db;
@@ -150,6 +142,7 @@ try {
             --box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
             --box-shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.15);
             --transition: all 0.3s ease;
+            --modal-bg: rgba(0, 0, 0, 0.5);
         }
         
         body {
@@ -172,13 +165,13 @@ try {
         }
 
         .page-header h1 {
-            color: var(--gray-900);
+            color: #212529;
             font-size: 2rem;
             margin-bottom: 0.5rem;
         }
 
         .page-header p {
-            color: var(--gray-600);
+            color: #6c757d;
             font-size: 1.1rem;
         }
 
@@ -206,23 +199,41 @@ try {
             font-size: 1.5rem;
         }
         
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            text-decoration: none;
+            font-size: 0.95rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
         .btn-primary {
             background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
-            border: none;
-            padding: 0.6rem 1.2rem;
-            font-weight: 600;
-            border-radius: 8px;
-            transition: var(--transition);
-            box-shadow: 0 4px 8px rgba(52, 152, 219, 0.3);
+            color: white;
+            box-shadow: 0 4px 6px rgba(52, 152, 219, 0.2);
         }
-        
+
         .btn-primary:hover {
+            background: linear-gradient(135deg, var(--primary-dark) 0%, #2573A7 100%);
             transform: translateY(-2px);
-            box-shadow: 0 6px 12px rgba(52, 152, 219, 0.4);
+            box-shadow: 0 6px 12px rgba(52, 152, 219, 0.3);
         }
         
-        .btn-primary:active {
-            transform: translateY(0);
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(108, 117, 125, 0.3);
         }
 
         .conversation-item {
@@ -315,68 +326,162 @@ try {
         }
         
         /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: var(--modal-bg);
+            overflow: hidden;
+        }
+
         .modal-content {
-            border-radius: 12px;
+            background-color: #fefefe;
+            margin: 2% auto;
+            padding: 0;
             border: none;
+            border-radius: var(--border-radius);
+            width: 90%;
+            max-width: 800px;
+            max-height: 90vh;
             box-shadow: var(--box-shadow-lg);
+            display: flex;
+            flex-direction: column;
+        }
+        
+        /* Add space to the right of dropdown icons */
+        select.form-select {
+            padding-right: 2.5rem;
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23343a40' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
+            background-repeat: no-repeat;
+            background-position: right 1rem center;
+            background-size: 16px 12px;
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+        }
+        
+        /* Change cancel button color to broken white */
+        #cancelMessageBtn {
+            background-color: #f8f9fa;
+            color: #212529;
+            border: 1px solid #dee2e6;
+        }
+        
+        #cancelMessageBtn:hover {
+            background-color: #e9ecef;
         }
         
         .modal-header {
-            background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
+            padding: 1.5rem;
+            background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
             color: white;
-            border-radius: 12px 12px 0 0 !important;
+            border-radius: var(--border-radius) var(--border-radius) 0 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h2 {
+            margin: 0;
+            font-size: 1.5rem;
+        }
+
+        .close {
+            color: white;
+            font-size: 2rem;
+            font-weight: bold;
+            cursor: pointer;
+            background: none;
             border: none;
+            transition: var(--transition);
+        }
+
+        .close:hover {
+            opacity: 0.8;
+        }
+
+        .modal-body {
+            padding: 0;
+            overflow-y: auto;
+            flex: 1;
         }
         
-        .modal-title {
-            font-weight: 600;
+        .form-group {
+            margin-bottom: 1.5rem;
         }
-        
-        .btn-close {
-            filter: invert(1);
-        }
-        
-        .form-label {
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
             font-weight: 500;
             color: var(--gray-700);
         }
-        
+
         .form-control, .form-select {
-            border: 2px solid var(--gray-300);
-            border-radius: 8px;
+            width: 100%;
             padding: 0.75rem;
-            transition: var(--transition);
+            border: 1px solid var(--gray-300);
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.3s, box-shadow 0.3s;
+            box-sizing: border-box;
         }
-        
+
         .form-control:focus, .form-select:focus {
             border-color: var(--primary-color);
-            box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.25);
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+        }
+
+        textarea.form-control {
+            min-height: 120px;
+            resize: vertical;
         }
         
         .modal-footer {
+            padding: 1.5rem;
             background-color: var(--gray-100);
-            border-radius: 0 0 12px 12px !important;
-            border: none;
+            border-radius: 0 0 var(--border-radius) var(--border-radius);
+            display: flex;
+            justify-content: flex-end;
+            gap: 1rem;
         }
         
-        .btn-secondary {
-            background-color: var(--gray-300);
-            border: none;
-            color: var(--gray-700);
-            font-weight: 500;
-            padding: 0.6rem 1.2rem;
+        /* Search Results */
+        .search-results {
+            position: absolute;
+            z-index: 1000;
+            width: 100%;
+            background: white;
+            border: 1px solid var(--gray-300);
             border-radius: 8px;
-            transition: var(--transition);
+            max-height: 200px;
+            overflow-y: auto;
+            margin-top: 0.25rem;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         }
         
-        .btn-secondary:hover {
-            background-color: var(--gray-400);
-            transform: translateY(-2px);
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        .search-result-item {
+            padding: 0.75rem;
+            border-bottom: 1px solid var(--gray-200);
+            cursor: pointer;
+            transition: background-color 0.2s;
         }
         
-        .btn-secondary:active {
-            transform: translateY(0);
+        .search-result-item:hover {
+            background-color: var(--gray-100);
+        }
+        
+        .search-result-item:last-child {
+            border-bottom: none;
+        }
+        
+        .position-relative {
+            position: relative;
         }
         
         @media (max-width: 768px) {
@@ -384,8 +489,10 @@ try {
                 padding: 1rem;
             }
             
-            .content-card {
-                padding: 1.5rem;
+            .modal-content {
+                width: 95%;
+                margin: 5% auto;
+                max-height: 95vh;
             }
         }
     </style>
@@ -398,15 +505,15 @@ try {
     
     <div class="container">
         <div class="page-header">
-            <h1><i class="fas fa-envelope me-2"></i> Messages</h1>
+            <h1><i class="fas fa-envelope"></i> Messages</h1>
             <p>Manage your communications</p>
         </div>
         
         <div class="content-card">
             <div class="card-header">
                 <h2>Conversations</h2>
-                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#composeModal">
-                    <i class="fas fa-plus me-1"></i> New Message
+                <button class="btn btn-primary" id="newMessageBtn">
+                    <i class="fas fa-plus"></i> New Message
                 </button>
             </div>
             
@@ -418,7 +525,7 @@ try {
                 <div class="list-group list-group-flush">
                     <?php foreach ($conversations as $conv): ?>
                         <a href="conversation.php?id=<?php echo urlencode($conv['message_id']); ?>&sender_id=<?php echo urlencode($conv['other_user_id']); ?>" 
-                           class="list-group-item list-group-item-action conversation-item <?php echo $conv['unread_count'] > 0 ? 'unread' : ''; ?>">
+                           class="conversation-item <?php echo $conv['unread_count'] > 0 ? 'unread' : ''; ?>">
                             <div class="d-flex justify-content-between align-items-start">
                                 <div class="me-3">
                                     <div class="conversation-header">
@@ -456,305 +563,364 @@ try {
     </div>
 
     <!-- Compose Modal -->
-    <div class="modal fade" id="composeModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-lg">
-            <div class="modal-content">
-                <div class="modal-header bg-primary text-white">
-                    <h5 class="modal-title">Compose New Message</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <form id="composeForm" onsubmit="sendComposeMessage(); return false;">
-                    <div class="modal-body">
-                        <!-- Recipient Type Selection -->
-                        <div class="mb-4">
-                            <label for="recipient_type" class="form-label fw-bold">Recipient:</label>
-                            <select class="form-select" id="recipient_type" name="recipient_type" required>
-                                <option value="supervisor">All Supervisors</option>
-                                <option value="all_members">All Members</option>
-                                <option value="individual_member">Individual Member</option>
-                            </select>
-                        </div>
+    <div id="composeModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2><i class="fas fa-envelope"></i> Compose New Message</h2>
+                <button class="close">&times;</button>
+            </div>
+            <div class="modal-body" style="padding: 1.5rem;">
+                <form id="composeForm">
+                    <!-- Recipient Type Selection -->
+                    <div class="form-group">
+                        <label for="recipient_type">Recipient:</label>
+                        <select class="form-select" id="recipient_type" name="recipient_type" required>
+                            <option value="supervisor">All Supervisors</option>
+                            <option value="all_members">All Members</option>
+                            <option value="individual_member">Individual Member</option>
+                        </select>
+                    </div>
 
-                        <!-- Individual Member Search (initially hidden) -->
-                        <div id="individualRecipientGroup" class="mb-3" style="display: none;">
-                            <label for="memberSearch" class="form-label">Search Member:</label>
-                            <div class="position-relative">
-                                <input type="text" class="form-control" id="memberSearch" placeholder="Type to search members..." autocomplete="off">
-                                <input type="hidden" id="selectedMemberId" name="individual_recipient">
-                                <div id="searchResults" class="list-group position-absolute w-100 z-1" style="display: none; max-height: 200px; overflow-y: auto; border: 1px solid #dee2e6; border-radius: 0.375rem; margin-top: 0.25rem;">
-                                    <!-- Search results will be populated here -->
-                                </div>
+                    <!-- Individual Member Search (initially hidden) -->
+                    <div id="individualRecipientGroup" class="form-group" style="display: none;">
+                        <label for="memberSearch">Search Member:</label>
+                        <div class="position-relative">
+                            <input type="text" class="form-control" id="memberSearch" placeholder="Type to search members..." autocomplete="off">
+                            <input type="hidden" id="selectedMemberId" name="individual_recipient">
+                            <div id="searchResults" class="search-results" style="display: none;">
+                                <!-- Search results will be populated here -->
                             </div>
                         </div>
-
-                        <!-- Subject -->
-                        <div class="mb-3">
-                            <label for="subject" class="form-label fw-bold">Subject:</label>
-                            <input type="text" class="form-control" id="subject" name="subject" required>
-                        </div>
-
-                        <!-- Message -->
-                        <div class="mb-2">
-                            <label for="message_body" class="form-label fw-bold">Message:</label>
-                            <textarea class="form-control" id="message_body" name="message_body" rows="4" required></textarea>
-                        </div>
                     </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                        <button type="submit" class="btn btn-primary">Send Message</button>
+
+                    <!-- Subject -->
+                    <div class="form-group">
+                        <label for="subject">Subject:</label>
+                        <input type="text" class="form-control" id="subject" name="subject" required>
+                    </div>
+
+                    <!-- Message -->
+                    <div class="form-group">
+                        <label for="message_body">Message:</label>
+                        <textarea class="form-control" id="message_body" name="message_body" rows="4" required></textarea>
                     </div>
                 </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="cancelMessageBtn">Cancel</button>
+                <button class="btn btn-primary" id="sendMessageBtn">Send Message</button>
             </div>
         </div>
     </div>
 
     <script>
-        // Show/hide individual recipient search based on recipient type
-        document.getElementById('recipient_type').addEventListener('change', function() {
-            const individualGroup = document.getElementById('individualRecipientGroup');
-            individualGroup.style.display = this.value === 'individual_member' ? 'block' : 'none';
-        });
-
-        // Initialize the visibility on page load
+        // Modal functionality
         document.addEventListener('DOMContentLoaded', function() {
-            const recipientType = document.getElementById('recipient_type');
-            const individualGroup = document.getElementById('individualRecipientGroup');
-            if (recipientType.value !== 'individual_member') {
-                individualGroup.style.display = 'none';
-            }
-        });
-
-        // Member search functionality
-        const memberSearch = document.getElementById('memberSearch');
-        const searchResults = document.getElementById('searchResults');
-        const selectedMemberId = document.getElementById('selectedMemberId');
-        let searchTimeout;
-        let selectedMember = null;
-
-        // Handle search input
-        memberSearch.addEventListener('input', function() {
-            clearTimeout(searchTimeout);
-            const query = this.value.trim();
+            const modal = document.getElementById('composeModal');
+            const newMessageBtn = document.getElementById('newMessageBtn');
+            const closeBtn = document.querySelector('.close');
+            const cancelMessageBtn = document.getElementById('cancelMessageBtn');
             
-            if (query === '') {
-                selectedMemberId.value = '';
-                selectedMember = null;
-                searchResults.style.display = 'none';
-                return;
-            }
-            
-            if (selectedMember && query === selectedMember.name) {
-                searchResults.style.display = 'none';
-                return;
-            }
-            
-            searchTimeout = setTimeout(() => searchMembers(query), 300);
-        });
-
-        // Close search results when clicking outside
-        document.addEventListener('click', function(e) {
-            if (!e.target.closest('.position-relative')) {
-                searchResults.style.display = 'none';
-            }
-        });
-
-        // Show search results when focusing on the search input
-        memberSearch.addEventListener('focus', function() {
-            if (this.value && !selectedMember) {
-                searchMembers(this.value);
-            }
-        });
-
-        // Select all text when clicking on the search input with a selected member
-        memberSearch.addEventListener('click', function() {
-            if (selectedMember) {
-                this.select();
-            }
-        });
-
-        function searchMembers(query) {
-            if (!query) {
-                searchResults.style.display = 'none';
-                return;
-            }
-            
-            // Show loading state
-            searchResults.innerHTML = '<div class="list-group-item">Searching...</div>';
-            searchResults.style.display = 'block';
-            
-            // Make AJAX request to search members
-            const xhr = new XMLHttpRequest();
-            xhr.open('GET', 'ajax_search_members.php?term=' + encodeURIComponent(query), true);
-            xhr.onreadystatechange = function() {
-                if (xhr.readyState === 4) {
-                    if (xhr.status === 200) {
-                        try {
-                            const members = JSON.parse(xhr.responseText);
-                            displaySearchResults(members);
-                        } catch (e) {
-                            console.error('Error parsing JSON:', e);
-                            searchResults.innerHTML = '<div class="list-group-item">Error loading results</div>';
-                        }
-                    } else {
-                        console.error('AJAX request failed with status:', xhr.status);
-                        searchResults.innerHTML = '<div class="list-group-item">Error loading results</div>';
-                    }
-                }
-            };
-            xhr.onerror = function() {
-                console.error('AJAX request failed');
-                searchResults.innerHTML = '<div class="list-group-item">Error loading results</div>';
-            };
-            xhr.send();
-        }
-        
-        function displaySearchResults(members) {
-            if (members.length === 0) {
-                searchResults.innerHTML = '<div class="list-group-item">No members found</div>';
-                return;
-            }
-            
-            searchResults.innerHTML = members.map(member => `
-                <button type="button" class="list-group-item list-group-item-action" 
-                        data-id="${member.id}" data-name="${member.name}">
-                    <div class="d-flex w-100 justify-content-between">
-                        <h6 class="mb-1">${member.name}</h6>
-                    </div>
-                    <small class="text-muted">${member.email}</small>
-                </button>
-            `).join('');
-            
-            // Add click handlers to result items
-            searchResults.querySelectorAll('button').forEach(button => {
-                button.addEventListener('click', function() {
-                    const id = this.getAttribute('data-id');
-                    const name = this.getAttribute('data-name');
-                    
-                    selectedMemberId.value = id;
-                    selectedMember = { id, name };
-                    memberSearch.value = name;
-                    searchResults.style.display = 'none';
-                });
+            // Open modal
+            newMessageBtn.addEventListener('click', function() {
+                // Reset form
+                document.getElementById('composeForm').reset();
+                document.getElementById('selectedMemberId').value = '';
+                document.getElementById('searchResults').style.display = 'none';
+                document.getElementById('individualRecipientGroup').style.display = 'none';
+                modal.style.display = 'block';
+                document.body.style.overflow = 'hidden';
             });
-        }
-        
-        function sendComposeMessage() {
-            const form = document.getElementById('composeForm');
-            const formData = new FormData(form);
             
-            // Basic validation
-            if (!formData.get('subject') || !formData.get('message_body')) {
-                showToast('Please fill in all required fields', 'warning');
-                return;
+            // Close modal functions
+            function closeModal() {
+                modal.style.display = 'none';
+                document.body.style.overflow = '';
             }
             
-            if (formData.get('recipient_type') === 'individual_member' && !formData.get('individual_recipient')) {
-                showToast('Please select a member to send the message to', 'warning');
-                return;
-            }
+            closeBtn.addEventListener('click', closeModal);
+            cancelMessageBtn.addEventListener('click', closeModal);
             
-            // Show loading indicator
-            const submitBtn = form.querySelector('button[type="submit"]');
-            const originalText = submitBtn.innerHTML;
-            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Sending...';
-            submitBtn.disabled = true;
+            // Close modal when clicking outside
+            window.addEventListener('click', function(event) {
+                if (event.target === modal) {
+                    closeModal();
+                }
+            });
             
-            // Make AJAX request to send the message
-            fetch('send_message.php', {
-                method: 'POST',
-                body: formData
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.error) {
-                    showToast(data.error, 'error');
-                } else {
-                    showToast(data.message, 'success');
-                    const modal = bootstrap.Modal.getInstance(document.getElementById('composeModal'));
-                    modal.hide();
-                    form.reset();
+            // Show/hide individual recipient search based on recipient type
+            document.getElementById('recipient_type').addEventListener('change', function() {
+                const individualGroup = document.getElementById('individualRecipientGroup');
+                individualGroup.style.display = this.value === 'individual_member' ? 'block' : 'none';
+            });
+
+            // Member search functionality
+            const memberSearch = document.getElementById('memberSearch');
+            const searchResults = document.getElementById('searchResults');
+            const selectedMemberId = document.getElementById('selectedMemberId');
+            let searchTimeout;
+            let selectedMember = null;
+
+            // Handle search input
+            memberSearch.addEventListener('input', function() {
+                clearTimeout(searchTimeout);
+                const query = this.value.trim();
+                
+                if (query === '') {
                     selectedMemberId.value = '';
                     selectedMember = null;
-                    // Reload the page to show the new conversation
-                    setTimeout(() => {
-                        location.reload();
-                    }, 1000);
+                    searchResults.style.display = 'none';
+                    return;
                 }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                showToast('Error sending message', 'error');
-            })
-            .finally(() => {
-                // Restore button state
-                submitBtn.innerHTML = originalText;
-                submitBtn.disabled = false;
+                
+                if (selectedMember && query === selectedMember.name) {
+                    searchResults.style.display = 'none';
+                    return;
+                }
+                
+                searchTimeout = setTimeout(() => searchMembers(query), 300);
             });
-        }
-        
-        // Toast notification function
-        function showToast(message, type = 'info') {
-            // Create toast container if it doesn't exist
-            let toastContainer = document.getElementById('toast-container');
-            if (!toastContainer) {
-                toastContainer = document.createElement('div');
-                toastContainer.id = 'toast-container';
-                document.body.appendChild(toastContainer);
+
+            // Close search results when clicking outside
+            document.addEventListener('click', function(e) {
+                if (!e.target.closest('.position-relative')) {
+                    searchResults.style.display = 'none';
+                }
+            });
+
+            // Show search results when focusing on the search input
+            memberSearch.addEventListener('focus', function() {
+                if (this.value && !selectedMember) {
+                    searchMembers(this.value);
+                }
+            });
+
+            // Select all text when clicking on the search input with a selected member
+            memberSearch.addEventListener('click', function() {
+                if (selectedMember) {
+                    this.select();
+                }
+            });
+
+            function searchMembers(query) {
+                if (!query) {
+                    searchResults.style.display = 'none';
+                    return;
+                }
+                
+                // Show loading state
+                searchResults.innerHTML = '<div class="search-result-item">Searching...</div>';
+                searchResults.style.display = 'block';
+                
+                // Make AJAX request to search members
+                const xhr = new XMLHttpRequest();
+                xhr.open('GET', 'ajax_search_members.php?term=' + encodeURIComponent(query), true);
+                xhr.onreadystatechange = function() {
+                    if (xhr.readyState === 4) {
+                        if (xhr.status === 200) {
+                            try {
+                                const members = JSON.parse(xhr.responseText);
+                                displaySearchResults(members);
+                            } catch (e) {
+                                console.error('Error parsing JSON:', e);
+                                searchResults.innerHTML = '<div class="search-result-item">Error loading results</div>';
+                            }
+                        } else {
+                            console.error('AJAX request failed with status:', xhr.status);
+                            searchResults.innerHTML = '<div class="search-result-item">Error loading results</div>';
+                        }
+                    }
+                };
+                xhr.onerror = function() {
+                    console.error('AJAX request failed');
+                    searchResults.innerHTML = '<div class="search-result-item">Error loading results</div>';
+                };
+                xhr.send();
             }
             
-            // Create toast element
-            const toast = document.createElement('div');
-            toast.className = `toast toast-${type}`;
-            
-            // Set icon based on type
-            let iconClass = 'fa-info-circle';
-            if (type === 'success') iconClass = 'fa-check-circle';
-            else if (type === 'error') iconClass = 'fa-exclamation-circle';
-            else if (type === 'warning') iconClass = 'fa-exclamation-triangle';
-            
-            toast.innerHTML = `
-                <div class="toast-content">
-                    <div class="toast-icon">
-                        <i class="fas ${iconClass}"></i>
+            function displaySearchResults(members) {
+                if (members.length === 0) {
+                    searchResults.innerHTML = '<div class="search-result-item">No members found</div>';
+                    return;
+                }
+                
+                searchResults.innerHTML = members.map(member => `
+                    <div class="search-result-item" data-id="${member.id}" data-name="${member.name}">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <h6 style="margin: 0;">${member.name}</h6>
+                        </div>
+                        <small style="color: var(--gray-600);">${member.email}</small>
                     </div>
-                    <div class="toast-message">${message}</div>
-                    <button class="toast-close">&times;</button>
-                </div>
-            `;
+                `).join('');
+                
+                // Add click handlers to result items
+                searchResults.querySelectorAll('.search-result-item').forEach(item => {
+                    item.addEventListener('click', function() {
+                        const id = this.getAttribute('data-id');
+                        const name = this.getAttribute('data-name');
+                        
+                        selectedMemberId.value = id;
+                        selectedMember = { id, name };
+                        memberSearch.value = name;
+                        searchResults.style.display = 'none';
+                    });
+                });
+            }
             
-            // Add toast to container
-            toastContainer.appendChild(toast);
-            
-            // Show toast with animation
-            setTimeout(() => {
-                toast.classList.add('show');
-            }, 10);
-            
-            // Add close button event listener
-            const closeBtn = toast.querySelector('.toast-close');
-            closeBtn.addEventListener('click', () => {
-                toast.classList.remove('show');
-                toast.classList.add('hide');
-                setTimeout(() => {
-                    if (toast.parentNode) {
-                        toast.parentNode.removeChild(toast);
+            // Send message function
+            document.getElementById('sendMessageBtn').addEventListener('click', function() {
+                const form = document.getElementById('composeForm');
+                const formData = new FormData(form);
+                
+                // Basic validation
+                if (!formData.get('subject') || !formData.get('message_body')) {
+                    showToast('Please fill in all required fields', 'warning');
+                    return;
+                }
+                
+                if (formData.get('recipient_type') === 'individual_member' && !formData.get('individual_recipient')) {
+                    showToast('Please select a member to send the message to', 'warning');
+                    return;
+                }
+                
+                // Show loading indicator
+                const submitBtn = this;
+                const originalText = submitBtn.innerHTML;
+                submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Sending...';
+                submitBtn.disabled = true;
+                
+                // Make AJAX request to send the message
+                fetch('send_message.php', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        showToast(data.error, 'error');
+                    } else {
+                        showToast(data.message, 'success');
+                        closeModal();
+                        form.reset();
+                        selectedMemberId.value = '';
+                        selectedMember = null;
+                        // Reload the page to show the new conversation
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 1500);
                     }
-                }, 300);
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    showToast('Error sending message', 'error');
+                })
+                .finally(() => {
+                    submitBtn.innerHTML = originalText;
+                    submitBtn.disabled = false;
+                });
             });
             
-            // Auto hide toast after 5 seconds
-            setTimeout(() => {
-                if (toast.parentNode) {
-                    toast.classList.remove('show');
-                    toast.classList.add('hide');
+            // Toast notification function
+            function showToast(message, type = 'info') {
+                // Create toast container if it doesn't exist
+                let toastContainer = document.getElementById('toast-container');
+                if (!toastContainer) {
+                    toastContainer = document.createElement('div');
+                    toastContainer.id = 'toast-container';
+                    toastContainer.style.position = 'fixed';
+                    toastContainer.style.top = '20px';
+                    toastContainer.style.right = '20px';
+                    toastContainer.style.zIndex = '9999';
+                    document.body.appendChild(toastContainer);
+                }
+                
+                // Create toast element
+                const toast = document.createElement('div');
+                toast.style.display = 'flex';
+                toast.style.alignItems = 'center';
+                toast.style.gap = '12px';
+                toast.style.padding = '16px 20px';
+                toast.style.borderRadius = '8px';
+                toast.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15)';
+                toast.style.marginBottom = '12px';
+                toast.style.minWidth = '300px';
+                toast.style.maxWidth = '400px';
+                toast.style.animation = 'toastSlideIn 0.3s ease-out forwards';
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateX(100%)';
+                
+                // Set colors based on type
+                switch(type) {
+                    case 'success':
+                        toast.style.backgroundColor = '#2e7d32';
+                        toast.style.color = 'white';
+                        break;
+                    case 'error':
+                        toast.style.backgroundColor = '#c62828';
+                        toast.style.color = 'white';
+                        break;
+                    case 'warning':
+                        toast.style.backgroundColor = '#ef6c00';
+                        toast.style.color = 'white';
+                        break;
+                    default:
+                        toast.style.backgroundColor = '#1565c0';
+                        toast.style.color = 'white';
+                }
+                
+                toast.innerHTML = `
+                    <div style="flex: 1; font-size: 0.95rem;">${message}</div>
+                    <button class="toast-close" style="background: none; border: none; font-size: 1.2rem; cursor: pointer; color: inherit; opacity: 0.7; transition: opacity 0.2s;">&times;</button>
+                `;
+                
+                // Add close button event
+                const closeBtn = toast.querySelector('.toast-close');
+                closeBtn.addEventListener('click', function() {
+                    toast.style.animation = 'toastSlideOut 0.3s ease-in forwards';
                     setTimeout(() => {
                         if (toast.parentNode) {
                             toast.parentNode.removeChild(toast);
                         }
                     }, 300);
+                });
+                
+                // Add toast to container
+                toastContainer.appendChild(toast);
+                
+                // Trigger animation
+                setTimeout(() => {
+                    toast.style.opacity = '1';
+                    toast.style.transform = 'translateX(0)';
+                }, 10);
+                
+                // Auto remove after 5 seconds
+                setTimeout(() => {
+                    if (toast.parentNode) {
+                        toast.style.animation = 'toastSlideOut 0.3s ease-in forwards';
+                        setTimeout(() => {
+                            if (toast.parentNode) {
+                                toast.parentNode.removeChild(toast);
+                            }
+                        }, 300);
+                    }
+                }, 5000);
+            }
+            
+            // Add CSS for toast animations
+            const style = document.createElement('style');
+            style.innerHTML = `
+                @keyframes toastSlideIn {
+                    from { opacity: 0; transform: translateX(100%); }
+                    to { opacity: 1; transform: translateX(0); }
                 }
-            }, 5000);
-        }
+                
+                @keyframes toastSlideOut {
+                    from { opacity: 1; transform: translateX(0); }
+                    to { opacity: 0; transform: translateX(100%); }
+                }
+            `;
+            document.head.appendChild(style);
+        });
     </script>
 </body>
 </html>

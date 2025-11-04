@@ -5,7 +5,7 @@ define('LMS_ACCESS', true);
 require_once '../includes/EnvLoader.php';
 EnvLoader::load();
 include '../config/config.php';
-require_once '../includes/SubscriptionManager.php';
+require_once '../includes/SubscriptionCheck.php';
 
 // Start session
 if (session_status() == PHP_SESSION_NONE) {
@@ -18,17 +18,12 @@ if (!is_logged_in() || $_SESSION['user_role'] !== 'supervisor') {
     exit;
 }
 
-// Check subscription status
+// Check subscription status - redirect to expired page if subscription is not active
+requireActiveSubscription();
+
+// Get subscription details for display
 $subscriptionManager = new SubscriptionManager();
 $libraryId = $_SESSION['library_id'];
-$hasActiveSubscription = $subscriptionManager->hasActiveSubscription($libraryId);
-
-if (!$hasActiveSubscription) {
-    header('Location: ../subscription.php');
-    exit;
-}
-
-// Get subscription details
 $subscriptionDetails = $subscriptionManager->getSubscriptionDetails($libraryId);
 
 // Get statistics and library information
@@ -82,7 +77,7 @@ try {
         SELECT u.id, u.first_name, u.last_name, u.username, 
                COUNT(a.id) as attendance_count
         FROM users u
-        LEFT JOIN attendance a ON u.user_id = a.user_id
+        LEFT JOIN attendance a ON u.id = a.user_id
         WHERE u.library_id = ? AND u.role = 'member' AND u.status = 'active'
         GROUP BY u.id, u.first_name, u.last_name, u.username
         ORDER BY attendance_count DESC
@@ -447,7 +442,7 @@ $pageTitle = 'Supervisor Dashboard';
         
         .links-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            grid-template-columns: repeat(2, 1fr);
             gap: 1rem;
         }
         
@@ -683,8 +678,8 @@ $pageTitle = 'Supervisor Dashboard';
                     </div>
                     
                     <div class="detail-group">
-                        <div class="detail-label">Library Code</div>
-                        <div class="detail-value"><?php echo htmlspecialchars($libraryInfo['library_code'] ?? 'N/A'); ?></div>
+                        <div class="detail-label">Website</div>
+                        <div class="detail-value"><?php echo !empty($libraryInfo['website']) ? htmlspecialchars($libraryInfo['website']) : 'N/A'; ?></div>
                     </div>
                     
                     <div class="detail-group">
@@ -895,19 +890,14 @@ $pageTitle = 'Supervisor Dashboard';
                 </div>
                 
                 <div class="links-grid">
-                    <a href="books.php" class="link-card">
-                        <i class="fas fa-book link-icon"></i>
-                        <div class="link-title">Books</div>
-                    </a>
-                    
                     <a href="librarians.php" class="link-card">
                         <i class="fas fa-user-tie link-icon"></i>
-                        <div class="link-title">Librarians</div>
+                        <div class="link-title">Manage Librarians</div>
                     </a>
                     
-                    <a href="members.php" class="link-card">
-                        <i class="fas fa-users link-icon"></i>
-                        <div class="link-title">Members</div>
+                    <a href="reports.php" class="link-card">
+                        <i class="fas fa-chart-bar link-icon"></i>
+                        <div class="link-title">View Reports</div>
                     </a>
                     
                     <a href="messages.php" class="link-card">
@@ -915,14 +905,19 @@ $pageTitle = 'Supervisor Dashboard';
                         <div class="link-title">Messages</div>
                     </a>
                     
-                    <a href="members.php" class="link-card">
-                        <i class="fas fa-calendar-check link-icon"></i>
-                        <div class="link-title">Attendance</div>
+                    <a href="subscription.php" class="link-card">
+                        <i class="fas fa-crown link-icon"></i>
+                        <div class="link-title">Subscription</div>
                     </a>
                     
-                    <a href="reports.php" class="link-card">
-                        <i class="fas fa-chart-bar link-icon"></i>
-                        <div class="link-title">Reports</div>
+                    <a href="profile.php" class="link-card">
+                        <i class="fas fa-user link-icon"></i>
+                        <div class="link-title">Profile</div>
+                    </a>
+                    
+                    <a href="settings.php" class="link-card">
+                        <i class="fas fa-cog link-icon"></i>
+                        <div class="link-title">Library Settings</div>
                     </a>
                 </div>
             </div>

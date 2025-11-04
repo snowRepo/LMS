@@ -4,6 +4,9 @@
  * Handles subscription-related operations for libraries
  */
 
+// Include required classes
+require_once 'PaystackService.php';
+
 class SubscriptionManager {
     private $db;
     
@@ -163,6 +166,10 @@ class SubscriptionManager {
         $bookCountStmt->execute([$libraryId]);
         $bookCount = $bookCountStmt->fetch()['count'];
         
+        // Dynamically determine book limit based on current plan
+        $planDetails = PaystackService::getPlanDetails($subscription['plan_type']);
+        $dynamicBookLimit = $planDetails ? $planDetails['book_limit'] : $subscription['book_limit'];
+        
         // Get the selected plan from the subscription record itself
         $details = [
             'library_name' => $subscription['library_name'],
@@ -170,14 +177,14 @@ class SubscriptionManager {
             'status' => $subscription['status'],
             'expires' => $subscription['end_date'],
             'start_date' => $subscription['start_date'],
-            'book_limit' => $subscription['book_limit'],
+            'book_limit' => $dynamicBookLimit, // Use dynamic book limit based on plan
             'current_book_count' => $bookCount,
             'selected_plan' => $subscription['plan_type'], // Plan is now stored in subscriptions table
             'days_remaining' => $this->getDaysRemaining($subscription['end_date']),
             'is_trial' => $subscription['status'] === 'trial',
             'is_active' => $this->hasActiveSubscription($libraryId),
             'is_expired' => strtotime($subscription['end_date']) <= time(),
-            'can_add_books' => $bookCount < $subscription['book_limit'] || $subscription['book_limit'] == -1
+            'can_add_books' => $bookCount < $dynamicBookLimit || $dynamicBookLimit == -1
         ];
         
         return $details;

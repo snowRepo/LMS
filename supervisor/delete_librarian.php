@@ -400,10 +400,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirm_delete'])) {
             <div class="librarian-details-container">
                 <div class="librarian-avatar">
                     <div class="librarian-avatar-img">
-                        <?php 
-                        $initials = substr($librarian['first_name'], 0, 1) . substr($librarian['last_name'], 0, 1);
-                        echo strtoupper($initials);
-                        ?>
+                        <?php if (!empty($librarian['profile_image']) && file_exists('../' . $librarian['profile_image'])): ?>
+                            <img src="../<?php echo htmlspecialchars($librarian['profile_image']); ?>" 
+                                 alt="<?php echo htmlspecialchars($librarian['first_name'] . ' ' . $librarian['last_name']); ?>" 
+                                 style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">
+                        <?php else: ?>
+                            <?php 
+                            $initials = substr($librarian['first_name'], 0, 1) . substr($librarian['last_name'], 0, 1);
+                            echo strtoupper($initials);
+                            ?>
+                        <?php endif; ?>
                     </div>
                 </div>
                 

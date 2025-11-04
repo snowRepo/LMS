@@ -53,8 +53,8 @@ try {
         exit;
     }
     
-    // Get the integer ID of the member for attendance table
-    $memberIntegerId = $member['id'];
+    // Get the user_id of the member for attendance table (foreign key reference)
+    $memberUserId = $member['user_id'];
     
     // Check if member has attendance record for today
     $stmt = $db->prepare("
@@ -62,7 +62,7 @@ try {
         FROM attendance 
         WHERE user_id = ? AND library_id = ? AND attendance_date = CURDATE()
     ");
-    $stmt->execute([$memberIntegerId, $libraryId]);
+    $stmt->execute([$memberUserId, $libraryId]);
     $attendanceRecord = $stmt->fetch();
     
     $isPresentToday = $attendanceRecord ? true : false;
@@ -83,7 +83,11 @@ try {
                     INSERT INTO attendance (user_id, library_id, attendance_date, arrival_time) 
                     VALUES (?, ?, ?, ?)
                 ");
-                $result = $stmt->execute([$memberIntegerId, $libraryId, date('Y-m-d'), date('H:i:s')]);
+                // Use DateTime for consistency
+                $now = new DateTime();
+                $currentTime = $now->format('H:i:s');
+                $currentDate = $now->format('Y-m-d');
+                $result = $stmt->execute([$memberUserId, $libraryId, $currentDate, $currentTime]);
             } else if (!$hasArrivalTime) {
                 // Update existing record with arrival time
                 $stmt = $db->prepare("
@@ -91,7 +95,10 @@ try {
                     SET arrival_time = ? 
                     WHERE id = ?
                 ");
-                $result = $stmt->execute([date('H:i:s'), $attendanceRecord['id']]);
+                // Use DateTime for consistency
+                $now = new DateTime();
+                $currentTime = $now->format('H:i:s');
+                $result = $stmt->execute([$currentTime, $attendanceRecord['id']]);
             } else {
                 $error = 'Member already checked in today';
                 $result = false;
@@ -103,7 +110,11 @@ try {
                 $notificationService = new NotificationService();
                 
                 $notificationTitle = "Check-in Recorded";
-                $notificationMessage = "Your arrival time has been recorded as " . date('g:i A') . " today (" . date('F j, Y') . ") by the librarian.";
+                // Use DateTime for consistency
+                $now = new DateTime();
+                $currentTimeDisplay = $now->format('g:i A');
+                $currentDateDisplay = $now->format('F j, Y');
+                $notificationMessage = "Your arrival time has been recorded as " . $currentTimeDisplay . " today (" . $currentDateDisplay . ") by the librarian.";
                 
                 $notificationService->createNotification(
                     $userId,  // user_id string for notification service
@@ -130,7 +141,10 @@ try {
                     SET departure_time = ? 
                     WHERE id = ?
                 ");
-                $result = $stmt->execute([date('H:i:s'), $attendanceRecord['id']]);
+                // Use DateTime for consistency
+                $now = new DateTime();
+                $currentTime = $now->format('H:i:s');
+                $result = $stmt->execute([$currentTime, $attendanceRecord['id']]);
                 
                 if ($result) {
                     // Send notification to member about check-out
@@ -138,7 +152,11 @@ try {
                     $notificationService = new NotificationService();
                     
                     $notificationTitle = "Check-out Recorded";
-                    $notificationMessage = "Your departure time has been recorded as " . date('g:i A') . " today (" . date('F j, Y') . ") by the librarian.";
+                    // Use DateTime for consistency
+                    $now = new DateTime();
+                    $currentTimeDisplay = $now->format('g:i A');
+                    $currentDateDisplay = $now->format('F j, Y');
+                    $notificationMessage = "Your departure time has been recorded as " . $currentTimeDisplay . " today (" . $currentDateDisplay . ") by the librarian.";
                     
                     $notificationService->createNotification(
                         $userId,  // user_id string for notification service
@@ -175,6 +193,22 @@ try {
                 $result = $stmt->execute([$attendanceRecord['id']]);
                 
                 if ($result) {
+                    // Send notification to member about reset
+                    require_once '../includes/NotificationService.php';
+                    $notificationService = new NotificationService();
+                    
+                    $notificationTitle = "Attendance Record Reset";
+                    $currentDateDisplay = date('F j, Y');
+                    $notificationMessage = "Your attendance record for today (" . $currentDateDisplay . ") has been reset by the librarian.";
+                    
+                    $notificationService->createNotification(
+                        $userId,  // user_id string for notification service
+                        $notificationTitle,
+                        $notificationMessage,
+                        'info',  // type
+                        '../member/dashboard.php'  // action URL
+                    );
+                    
                     // Redirect with success message
                     header('Location: mark_attendance.php?user_id=' . urlencode($userId) . '&success=' . urlencode('Attendance record reset successfully'));
                     exit;
@@ -597,7 +631,10 @@ try {
                                     <i class="fas fa-check-circle"></i> 
                                     <?php 
                                     if (!empty($attendanceRecord['arrival_time'])) {
-                                        echo date('g:i A', strtotime($attendanceRecord['arrival_time']));
+                                        // For stored times, we assume they were stored in the user's timezone at the time of recording
+                                        // So we just format them as is
+                                        $arrivalTime = date('g:i A', strtotime($attendanceRecord['arrival_time']));
+                                        echo $arrivalTime;
                                     } else {
                                         echo 'Recorded (time not specified)';
                                     }
@@ -616,7 +653,12 @@ try {
                             <?php if ($hasDepartureTime): ?>
                                 <span class="status-present">
                                     <i class="fas fa-check-circle"></i> 
-                                    <?php echo date('g:i A', strtotime($attendanceRecord['departure_time'])); ?>
+                                    <?php 
+                                    // For stored times, we assume they were stored in the user's timezone at the time of recording
+                                    // So we just format them as is
+                                    $departureTime = date('g:i A', strtotime($attendanceRecord['departure_time']));
+                                    echo $departureTime;
+                                    ?>
                                 </span>
                             <?php else: ?>
                                 <span class="status-absent">
@@ -725,7 +767,7 @@ try {
             return toast;
         }
         
-        // Detect user timezone and send to server
+        // Re-enable timezone detection to use user's local time
         document.addEventListener('DOMContentLoaded', function() {
             // Get user's timezone
             const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -734,31 +776,32 @@ try {
             const timezoneKey = 'lms_user_timezone';
             const storedTimezone = localStorage.getItem(timezoneKey);
             
-            if (storedTimezone !== userTimezone) {
-                // Send timezone to server via AJAX
-                fetch('../includes/set_timezone.php', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({timezone: userTimezone})
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        console.log('Timezone set to: ' + userTimezone);
-                        // Store the timezone in localStorage to prevent future reloads
-                        localStorage.setItem(timezoneKey, userTimezone);
-                        // Only reload if this is the first time setting the timezone
-                        if (!storedTimezone) {
-                            window.location.reload();
-                        }
+            // Always send timezone to server to ensure it's up to date
+            // Send timezone to server via AJAX
+            fetch('../includes/set_timezone.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({timezone: userTimezone})
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    console.log('Timezone set to: ' + userTimezone);
+                    // Store the timezone in localStorage to prevent future reloads
+                    localStorage.setItem(timezoneKey, userTimezone);
+                    // Always reload to ensure the timezone is applied
+                    if (storedTimezone !== userTimezone) {
+                        window.location.reload();
                     }
-                })
-                .catch(error => {
-                    console.error('Error setting timezone:', error);
-                });
-            }
+                } else {
+                    console.error('Failed to set timezone:', data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error setting timezone:', error);
+            });
             
             // Check for URL parameters and show toast notifications
             const urlParams = new URLSearchParams(window.location.search);

@@ -6,6 +6,7 @@ require_once '../includes/EnvLoader.php';
 EnvLoader::load();
 include '../config/config.php';
 require_once '../includes/SubscriptionManager.php';
+require_once '../includes/SubscriptionCheck.php';
 
 // Start session
 if (session_status() == PHP_SESSION_NONE) {
@@ -18,7 +19,10 @@ if (!is_logged_in() || $_SESSION['user_role'] !== 'supervisor') {
     exit;
 }
 
-// Check subscription status
+// Check subscription status - redirect to expired page if subscription is not active
+requireActiveSubscription();
+
+// Check subscription status (keeping original logic for backward compatibility)
 $subscriptionManager = new SubscriptionManager();
 $libraryId = $_SESSION['library_id'];
 $hasActiveSubscription = $subscriptionManager->hasActiveSubscription($libraryId);
@@ -491,7 +495,7 @@ if (!empty($individualMemberId)) {
         .members-table th,
         .members-table td {
             padding: 0.75rem;
-            text-align: left;
+            text-align: center;
             border-bottom: 1px solid #dee2e6;
         }
 
@@ -499,6 +503,7 @@ if (!empty($individualMemberId)) {
             background-color: #f8f9fa;
             font-weight: 600;
             color: #495057;
+            text-align: center;
         }
 
         .members-table tr:hover {
@@ -634,15 +639,7 @@ if (!empty($individualMemberId)) {
                 </form>
             </div>
             
-            <!-- Export Buttons -->
-            <div class="export-buttons">
-                <a href="member_reports.php?export=csv<?php echo !empty($search) ? '&search=' . urlencode($search) : ''; ?>" class="btn btn-success">
-                    <i class="fas fa-file-csv"></i> Export as CSV
-                </a>
-                <a href="member_reports.php?export=pdf<?php echo !empty($search) ? '&search=' . urlencode($search) : ''; ?>" class="btn btn-danger">
-                    <i class="fas fa-file-pdf"></i> Export as PDF
-                </a>
-            </div>
+
             
             <div class="table-container">
                 <table class="members-table">
