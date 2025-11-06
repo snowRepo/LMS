@@ -158,10 +158,12 @@ class ReservationService {
         $stmt = $this->db->prepare("
             SELECT r.*, 
                    b.title as book_title, 
+                   b.subtitle as book_subtitle,
                    b.isbn,
                    b.cover_image,
                    b.category_id,
                    b.book_id as book_internal_id,
+                   b.author_name as book_author,
                    c.name as category_name,
                    CONCAT(u.first_name, ' ', u.last_name) as member_name,
                    u.email as member_email,

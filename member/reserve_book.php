@@ -111,7 +111,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->execute([$book['id']]);
         
         // Get member details for notification
-        $stmt = $db->prepare("SELECT id, first_name, last_name FROM users WHERE user_id = ?");
+        $stmt = $db->prepare("SELECT id, first_name, last_name FROM users WHERE id = ?");
         $stmt->execute([$_SESSION['user_id']]);
         $member = $stmt->fetch(PDO::FETCH_ASSOC);
         $memberName = $member ? $member['first_name'] . ' ' . $member['last_name'] : 'A member';

@@ -28,7 +28,7 @@ $borrowingHistory = [];
 try {
     if (!empty($search)) {
         $stmt = $db->prepare("
-            SELECT b.*, bk.title, bk.isbn, bk.author_name,
+            SELECT b.*, bk.title, bk.subtitle, bk.isbn, bk.author_name,
                    u.first_name as issued_by_first_name, u.last_name as issued_by_last_name,
                    ur.first_name as returned_by_first_name, ur.last_name as returned_by_last_name
             FROM borrowings b
@@ -36,15 +36,15 @@ try {
             JOIN users u ON b.issued_by = u.id
             LEFT JOIN users ur ON b.returned_by = ur.id
             WHERE b.member_id = ? AND b.return_date IS NOT NULL
-            AND (bk.title LIKE ? OR bk.isbn LIKE ? OR b.transaction_id LIKE ?)
+            AND (bk.title LIKE ? OR bk.subtitle LIKE ? OR bk.isbn LIKE ? OR b.transaction_id LIKE ?)
             ORDER BY b.return_date DESC
             LIMIT 50
         ");
         $searchParam = "%$search%";
-        $stmt->execute([$_SESSION['user_id'], $searchParam, $searchParam, $searchParam]);
+        $stmt->execute([$_SESSION['user_id'], $searchParam, $searchParam, $searchParam, $searchParam]);
     } else {
         $stmt = $db->prepare("
-            SELECT b.*, bk.title, bk.isbn, bk.author_name,
+            SELECT b.*, bk.title, bk.subtitle, bk.isbn, bk.author_name,
                    u.first_name as issued_by_first_name, u.last_name as issued_by_last_name,
                    ur.first_name as returned_by_first_name, ur.last_name as returned_by_last_name
             FROM borrowings b
@@ -283,6 +283,18 @@ $pageTitle = 'Borrowing History';
             box-shadow: 0 6px 20px rgba(0,0,0,0.1);
         }
         
+        .book-title {
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+        }
+        
+        .book-subtitle {
+            font-size: 0.85rem;
+            color: #6c757d;
+            font-weight: normal;
+            margin-top: 0.1rem;
+        }
+        
         @media (max-width: 768px) {
             .container {
                 padding: 1rem;
@@ -322,7 +334,7 @@ $pageTitle = 'Borrowing History';
             <div class="section-header">
                 <h2 class="section-title"><i class="fas fa-list"></i> Borrowing History</h2>
                 <form method="GET" class="search-bar">
-                    <input type="text" name="search" class="search-input" placeholder="Search by title, ISBN, or transaction ID..." value="<?php echo htmlspecialchars($search); ?>">
+                    <input type="text" name="search" class="search-input" placeholder="Search by title, subtitle, ISBN, or transaction ID..." value="<?php echo htmlspecialchars($search); ?>">
                     <button type="submit" class="search-btn">
                         <i class="fas fa-search"></i>
                     </button>
@@ -363,7 +375,14 @@ $pageTitle = 'Borrowing History';
                         <tbody>
                             <?php foreach ($borrowingHistory as $borrowing): ?>
                                 <tr>
-                                    <td><?php echo htmlspecialchars($borrowing['title']); ?></td>
+                                    <td>
+                                        <div class="book-title">
+                                            <?php echo htmlspecialchars($borrowing['title']); ?>
+                                            <?php if (!empty($borrowing['subtitle'])): ?>
+                                                - <?php echo htmlspecialchars($borrowing['subtitle']); ?>
+                                            <?php endif; ?>
+                                        </div>
+                                    </td>
                                     <td><?php echo htmlspecialchars($borrowing['author_name'] ?? 'Unknown'); ?></td>
                                     <td><?php echo date('M j, Y', strtotime($borrowing['issue_date'])); ?></td>
                                     <td><?php echo date('M j, Y', strtotime($borrowing['due_date'])); ?></td>

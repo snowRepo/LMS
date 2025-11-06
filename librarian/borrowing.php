@@ -32,7 +32,7 @@ $activeBorrowings = [];
 try {
     if (!empty($search)) {
         $stmt = $db->prepare("
-            SELECT b.*, bk.title, bk.isbn, 
+            SELECT b.*, bk.title, bk.subtitle, 
                    CONCAT(m.first_name, ' ', m.last_name) as member_name,
                    DATEDIFF(b.due_date, CURDATE()) as days_remaining
             FROM borrowings b
@@ -47,7 +47,7 @@ try {
         $stmt->execute([$searchParam, $searchParam, $searchParam, $searchParam, $searchParam]);
     } else {
         $stmt = $db->query("
-            SELECT b.*, bk.title, bk.isbn, 
+            SELECT b.*, bk.title, bk.subtitle, 
                    CONCAT(m.first_name, ' ', m.last_name) as member_name,
                    DATEDIFF(b.due_date, CURDATE()) as days_remaining
             FROM borrowings b
@@ -482,7 +482,7 @@ $pageTitle = 'Borrowing';
                                         <td>
                                             <div class="book-info">
                                                 <div><strong><?php echo htmlspecialchars($borrowing['title']); ?></strong></div>
-                                                <div class="text-muted"><?php echo htmlspecialchars($borrowing['isbn']); ?></div>
+                                                <div class="text-muted"><?php echo !empty($borrowing['subtitle']) ? htmlspecialchars($borrowing['subtitle']) : ''; ?></div>
                                             </div>
                                         </td>
                                         <td><?php echo htmlspecialchars($borrowing['member_name']); ?></td>
@@ -505,9 +505,9 @@ $pageTitle = 'Borrowing';
                                                 <button class="action-btn btn-return" title="Mark as Returned" data-id="<?php echo $borrowing['id']; ?>">
                                                     <i class="fas fa-undo"></i>
                                                 </button>
-                                                <button class="action-btn btn-renew" title="Renew" data-id="<?php echo $borrowing['id']; ?>">
+                                                <a href="renew_borrowing.php?id=<?php echo $borrowing['id']; ?>" class="action-btn btn-renew" title="Renew">
                                                     <i class="fas fa-sync-alt"></i>
-                                                </button>
+                                                </a>
                                                 <a href="view_borrowing.php?id=<?php echo $borrowing['id']; ?>" class="action-btn btn-view" title="View Details">
                                                     <i class="fas fa-file-alt"></i>
                                                 </a>
@@ -606,26 +606,6 @@ $pageTitle = 'Borrowing';
             window.location.href = 'process_return.php?borrowing_id=' + borrowingId;
         }
         
-        // Function to handle renew book action
-        function renewBook(borrowingId) {
-            if (confirm('Are you sure you want to renew this borrowing?')) {
-                // AJAX call to process renewal
-                $.post('process_renewal.php', { borrowing_id: borrowingId })
-                    .done(function(response) {
-                        const result = JSON.parse(response);
-                        if (result.success) {
-                            // Reload the page or update the UI
-                            location.reload();
-                        } else {
-                            alert('Error: ' + result.message);
-                        }
-                    })
-                    .fail(function() {
-                        alert('Error processing renewal. Please try again.');
-                    });
-            }
-        }
-        
         // Attach event listeners when the document is ready
         $(document).ready(function() {
             // Show toast notification if success or error parameter is present
@@ -653,12 +633,6 @@ $pageTitle = 'Borrowing';
             $('.btn-return').click(function() {
                 const borrowingId = $(this).data('id');
                 markAsReturned(borrowingId);
-            });
-            
-            // Handle renew book button clicks
-            $('.btn-renew').click(function() {
-                const borrowingId = $(this).data('id');
-                renewBook(borrowingId);
             });
             
 

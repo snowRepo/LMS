@@ -284,8 +284,8 @@ if (isset($_GET['success'])) {
         }
         
         .status-cancelled { 
-            background: #fafafa; 
-            color: #9e9e9e; 
+            background: #FFEBEE; 
+            color: #c62828; 
         }
         
         .status-borrowed { 
@@ -456,7 +456,12 @@ if (isset($_GET['success'])) {
                 
                 <div class="book-info">
                     <div>
-                        <h1 class="book-title"><?php echo htmlspecialchars($reservation['book_title']); ?></h1>
+                        <h1 class="book-title">
+                            <?php echo htmlspecialchars($reservation['book_title']); ?>
+                            <?php if (!empty($reservation['book_subtitle'])): ?>
+                                - <?php echo htmlspecialchars($reservation['book_subtitle']); ?>
+                            <?php endif; ?>
+                        </h1>
                         <div class="book-author">by <?php echo htmlspecialchars($reservation['book_author'] ?? 'Unknown Author'); ?></div>
                         
                         <?php if (!empty($reservation['category_name'])): ?>

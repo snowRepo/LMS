@@ -36,6 +36,7 @@ try {
     $stmt = $db->prepare("
         SELECT b.*, 
                bk.title as book_title, 
+               bk.subtitle as book_subtitle,
                bk.isbn, 
                bk.author_name as book_author,
                bk.cover_image,
@@ -426,7 +427,12 @@ if (isset($_GET['success'])) {
                 
                 <div class="book-info">
                     <div>
-                        <h1 class="book-title"><?php echo htmlspecialchars($borrowing['book_title']); ?></h1>
+                        <h1 class="book-title">
+                            <?php echo htmlspecialchars($borrowing['book_title']); ?>
+                            <?php if (!empty($borrowing['book_subtitle'])): ?>
+                                - <?php echo htmlspecialchars($borrowing['book_subtitle']); ?>
+                            <?php endif; ?>
+                        </h1>
                         <div class="book-author">by <?php echo htmlspecialchars($borrowing['book_author'] ?? 'Unknown Author'); ?></div>
                         
                         <?php if (!empty($borrowing['category_name'])): ?>
@@ -550,9 +556,9 @@ if (isset($_GET['success'])) {
                                 <i class="fas fa-undo"></i> Mark as Returned
                             </button>
                             
-                            <button class="btn btn-primary" onclick="renewBook(<?php echo $borrowingId; ?>)">
+                            <a href="renew_borrowing.php?id=<?php echo $borrowingId; ?>" class="btn btn-primary">
                                 <i class="fas fa-sync-alt"></i> Renew Borrowing
-                            </button>
+                            </a>
                         <?php endif; ?>
                         
                         <a href="borrowing.php" class="btn btn-primary">
@@ -641,26 +647,6 @@ if (isset($_GET['success'])) {
             
             // Redirect to process return with borrowing ID
             window.location.href = 'process_return.php?borrowing_id=' + borrowingId;
-        }
-        
-        // Function to handle renew book action
-        function renewBook(borrowingId) {
-            if (confirm('Are you sure you want to renew this borrowing?')) {
-                // AJAX call to process renewal
-                $.post('process_renewal.php', { borrowing_id: borrowingId })
-                    .done(function(response) {
-                        const result = JSON.parse(response);
-                        if (result.success) {
-                            // Reload the page or update the UI
-                            location.reload();
-                        } else {
-                            alert('Error: ' + result.message);
-                        }
-                    })
-                    .fail(function() {
-                        alert('Error processing renewal. Please try again.');
-                    });
-            }
         }
         
         // Initialize when document is ready

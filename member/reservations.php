@@ -36,6 +36,7 @@ try {
                    bk.title, 
                    bk.isbn, 
                    bk.author_name as author,
+                   bk.subtitle as subtitle,
                    CASE 
                        WHEN r.status = 'pending' THEN 'Pending'
                        WHEN r.status = 'approved' THEN 'Approved'
@@ -70,6 +71,7 @@ try {
                    bk.title, 
                    bk.isbn, 
                    bk.author_name as author,
+                   bk.subtitle as subtitle,
                    CASE 
                        WHEN r.status = 'pending' THEN 'Pending'
                        WHEN r.status = 'approved' THEN 'Approved'
@@ -271,8 +273,8 @@ $pageTitle = 'My Reservations';
         }
         
         .status-cancelled { 
-            background: #fafafa; 
-            color: #9e9e9e; 
+            background: #FFEBEE; 
+            color: #c62828; 
         }
         
         .status-fulfilled { 
@@ -487,6 +489,7 @@ $pageTitle = 'My Reservations';
                             <thead>
                                 <tr>
                                     <th>Book</th>
+                                    <th>Author</th>
                                     <th>Reservation Date</th>
                                     <th>Expiry Date</th>
                                     <th>Status</th>
@@ -501,11 +504,16 @@ $pageTitle = 'My Reservations';
                                 ?>
                                     <tr>
                                         <td class="book-info">
-                                            <div><strong><?php echo htmlspecialchars($reservation['title']); ?></strong></div>
-                                            <div class="text-muted">
-                                                <?php echo htmlspecialchars($reservation['author']); ?>
+                                            <div>
+                                                <strong>
+                                                    <?php echo htmlspecialchars($reservation['title']); ?>
+                                                    <?php if (!empty($reservation['subtitle'])): ?>
+                                                        - <?php echo htmlspecialchars($reservation['subtitle']); ?>
+                                                    <?php endif; ?>
+                                                </strong>
                                             </div>
                                         </td>
+                                        <td><?php echo htmlspecialchars($reservation['author']); ?></td>
                                         <td><?php echo $reservationDate->format('M j, Y'); ?></td>
                                         <td class="<?php echo $isExpired ? 'text-danger' : ''; ?>">
                                             <?php echo $expiryDate->format('M j, Y'); ?>
@@ -553,8 +561,27 @@ $pageTitle = 'My Reservations';
         // Function to handle cancel reservation action
         function cancelReservation(reservationId) {
             if (confirm('Are you sure you want to cancel this reservation?')) {
-                // In a full implementation, this would make an AJAX call to cancel the reservation
-                alert('In a full implementation, this would cancel the reservation.');
+                fetch('process_cancel_reservation.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: 'reservation_id=' + reservationId
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // Redirect to reservations page with success message
+                        window.location.href = 'reservations.php?success=' + encodeURIComponent('Reservation cancelled successfully!');
+                    } else {
+                        // Show error toast
+                        showToast('Error: ' + data.message, 'error');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    showToast('An error occurred while cancelling the reservation.', 'error');
+                });
             }
         }
         

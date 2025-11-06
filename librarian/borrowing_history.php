@@ -28,7 +28,7 @@ $borrowingHistory = [];
 try {
     if (!empty($search)) {
         $stmt = $db->prepare("
-            SELECT b.*, bk.title, bk.isbn, bk.author_name,
+            SELECT b.*, bk.title, bk.subtitle, bk.isbn, bk.author_name,
                    CONCAT(m.first_name, ' ', m.last_name) as member_name,
                    m.user_id as member_id,
                    u.first_name as issued_by_first_name, u.last_name as issued_by_last_name,
@@ -39,15 +39,15 @@ try {
             JOIN users u ON b.issued_by = u.id
             LEFT JOIN users ur ON b.returned_by = ur.id
             WHERE b.return_date IS NOT NULL
-            AND (bk.title LIKE ? OR bk.isbn LIKE ? OR b.transaction_id LIKE ? OR m.first_name LIKE ? OR m.last_name LIKE ? OR m.user_id LIKE ?)
+            AND (bk.title LIKE ? OR bk.subtitle LIKE ? OR bk.isbn LIKE ? OR b.transaction_id LIKE ? OR m.first_name LIKE ? OR m.last_name LIKE ? OR m.user_id LIKE ?)
             ORDER BY b.return_date DESC
             LIMIT 50
         ");
         $searchParam = "%$search%";
-        $stmt->execute([$searchParam, $searchParam, $searchParam, $searchParam, $searchParam, $searchParam]);
+        $stmt->execute([$searchParam, $searchParam, $searchParam, $searchParam, $searchParam, $searchParam, $searchParam]);
     } else {
         $stmt = $db->prepare("
-            SELECT b.*, bk.title, bk.isbn, bk.author_name,
+            SELECT b.*, bk.title, bk.subtitle, bk.isbn, bk.author_name,
                    CONCAT(m.first_name, ' ', m.last_name) as member_name,
                    m.user_id as member_id,
                    u.first_name as issued_by_first_name, u.last_name as issued_by_last_name,
@@ -289,6 +289,18 @@ $pageTitle = 'Borrowing History';
             box-shadow: 0 6px 20px rgba(0,0,0,0.1);
         }
         
+        .book-title {
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+        }
+        
+        .book-subtitle {
+            font-size: 0.85rem;
+            color: #6c757d;
+            font-weight: normal;
+            margin-top: 0.1rem;
+        }
+        
         @media (max-width: 768px) {
             .container {
                 padding: 1rem;
@@ -370,7 +382,14 @@ $pageTitle = 'Borrowing History';
                         <tbody>
                             <?php foreach ($borrowingHistory as $borrowing): ?>
                                 <tr>
-                                    <td><?php echo htmlspecialchars($borrowing['title']); ?></td>
+                                    <td>
+                                        <div class="book-title">
+                                            <?php echo htmlspecialchars($borrowing['title']); ?>
+                                            <?php if (!empty($borrowing['subtitle'])): ?>
+                                                - <?php echo htmlspecialchars($borrowing['subtitle']); ?>
+                                            <?php endif; ?>
+                                        </div>
+                                    </td>
                                     <td><?php echo htmlspecialchars($borrowing['author_name'] ?? 'Unknown'); ?></td>
                                     <td><?php echo htmlspecialchars($borrowing['member_name']); ?></td>
                                     <td><?php echo date('M j, Y', strtotime($borrowing['issue_date'])); ?></td>

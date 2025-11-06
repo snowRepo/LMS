@@ -33,6 +33,7 @@ try {
     $stmt = $db->prepare("
         SELECT r.*, 
                bk.title as book_title,
+               bk.subtitle as book_subtitle,
                bk.author_name as book_author,
                bk.isbn as book_isbn,
                bk.description as book_description,
@@ -67,6 +68,7 @@ try {
     
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="css/toast.css">
     
     <style>
         * {
@@ -260,8 +262,8 @@ try {
         }
         
         .status-cancelled { 
-            background: #fafafa; 
-            color: #9e9e9e; 
+            background: #FFEBEE; 
+            color: #c62828; 
         }
         
         .status-fulfilled { 
@@ -371,6 +373,9 @@ try {
 <body>
     <?php include 'includes/member_navbar.php'; ?>
     
+    <!-- Toast Container -->
+    <div id="toast-container"></div>
+    
     <div class="container">
         <a href="reservations.php" class="back-link">
             <i class="fas fa-arrow-left"></i> Back to Reservations
@@ -390,7 +395,12 @@ try {
                 
                 <div class="book-info">
                     <div>
-                        <h1 class="book-title"><?php echo htmlspecialchars($reservation['book_title']); ?></h1>
+                        <h1 class="book-title">
+                            <?php echo htmlspecialchars($reservation['book_title']); ?>
+                            <?php if (!empty($reservation['book_subtitle'])): ?>
+                                - <?php echo htmlspecialchars($reservation['book_subtitle']); ?>
+                            <?php endif; ?>
+                        </h1>
                         <div class="book-author">by <?php echo htmlspecialchars($reservation['book_author'] ?? 'Unknown Author'); ?></div>
                         
                         <?php if (!empty($reservation['category_name'])): ?>
@@ -516,6 +526,62 @@ try {
     </div>
     
     <script>
+        // Global toast notification function
+        function showToast(message, type = 'info', duration = 5000) {
+            const container = document.getElementById('toast-container');
+            
+            // Create toast element
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+            
+            // Add icon based on type
+            let icon = 'info-circle';
+            if (type === 'success') icon = 'check-circle';
+            if (type === 'error') icon = 'exclamation-circle';
+            if (type === 'warning') icon = 'exclamation-triangle';
+            
+            toast.innerHTML = `
+                <div class="toast-content">
+                    <i class="fas fa-${icon} toast-icon"></i>
+                    <div class="toast-message">${message}</div>
+                </div>
+                <button class="toast-close">&times;</button>
+            `;
+            
+            // Add close button event
+            const closeBtn = toast.querySelector('.toast-close');
+            closeBtn.addEventListener('click', function() {
+                toast.classList.add('hide');
+                setTimeout(() => {
+                    if (toast.parentNode) {
+                        toast.parentNode.removeChild(toast);
+                    }
+                }, 300);
+            });
+            
+            // Add toast to container
+            container.appendChild(toast);
+            
+            // Trigger animation
+            setTimeout(() => {
+                toast.classList.add('show');
+            }, 10);
+            
+            // Auto remove after duration
+            if (duration > 0) {
+                setTimeout(() => {
+                    if (toast.parentNode) {
+                        toast.classList.add('hide');
+                        setTimeout(() => {
+                            if (toast.parentNode) {
+                                toast.parentNode.removeChild(toast);
+                            }
+                        }, 300);
+                    }
+                }, duration);
+            }
+        }
+        
         function cancelReservation(reservationId) {
             if (confirm('Are you sure you want to cancel this reservation?')) {
                 fetch('process_cancel_reservation.php', {
@@ -525,20 +591,19 @@ try {
                     },
                     body: 'reservation_id=' + reservationId
                 })
-                .then(function(response) {
-                    return response.json();
-                })
-                .then(function(data) {
+                .then(response => response.json())
+                .then(data => {
                     if (data.success) {
-                        alert('Reservation cancelled successfully!');
-                        location.reload();
+                        // Redirect to reservations page with success message
+                        window.location.href = 'reservations.php?success=' + encodeURIComponent('Reservation cancelled successfully!');
                     } else {
-                        alert('Error: ' + data.message);
+                        // Show error toast
+                        showToast('Error: ' + data.message, 'error');
                     }
                 })
-                .catch(function(error) {
+                .catch(error => {
                     console.error('Error:', error);
-                    alert('An error occurred while cancelling the reservation.');
+                    showToast('An error occurred while cancelling the reservation.', 'error');
                 });
             }
         }

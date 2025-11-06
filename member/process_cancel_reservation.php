@@ -16,7 +16,7 @@ if (session_status() == PHP_SESSION_NONE) {
 
 // Check if user is logged in and has member role
 if (!is_logged_in() || $_SESSION['user_role'] !== 'member') {
-    echo json_encode(['success' => false, 'error' => 'Unauthorized access']);
+    echo json_encode(['success' => false, 'message' => 'Unauthorized access']);
     exit;
 }
 
@@ -24,7 +24,7 @@ if (!is_logged_in() || $_SESSION['user_role'] !== 'member') {
 $reservationId = isset($_POST['reservation_id']) ? (int)$_POST['reservation_id'] : 0;
 
 if (empty($reservationId)) {
-    echo json_encode(['success' => false, 'error' => 'Invalid reservation ID']);
+    echo json_encode(['success' => false, 'message' => 'Invalid reservation ID']);
     exit;
 }
 
@@ -32,9 +32,9 @@ try {
     $db = Database::getInstance()->getConnection();
     $db->beginTransaction();
     
-    // Get reservation details
+    // Get reservation details including book and library information
     $stmt = $db->prepare("
-        SELECT r.*, b.book_id as book_internal_id
+        SELECT r.*, b.book_id as book_internal_id, b.title as book_title, b.library_id
         FROM reservations r
         JOIN books b ON r.book_id = b.id
         WHERE r.id = ? AND r.member_id = ?
@@ -69,7 +69,40 @@ try {
     ");
     $stmt->execute([$reservation['book_id']]);
     
+    // Get member name for notification
+    $stmt = $db->prepare("SELECT first_name, last_name FROM users WHERE id = ?");
+    $stmt->execute([$_SESSION['user_id']]);
+    $member = $stmt->fetch(PDO::FETCH_ASSOC);
+    $memberName = $member ? $member['first_name'] . ' ' . $member['last_name'] : 'A member';
+    
     $db->commit();
+    
+    // Send notification to librarians
+    try {
+        // Include the NotificationService
+        require_once '../includes/NotificationService.php';
+        
+        // Get all librarians in the same library
+        $stmt = $db->prepare("
+            SELECT id FROM users 
+            WHERE library_id = ? AND role = 'librarian' AND status = 'active'
+        ");
+        $stmt->execute([$reservation['library_id']]);
+        $librarians = $stmt->fetchAll(PDO::FETCH_COLUMN);
+        
+        if (!empty($librarians)) {
+            $notificationService = new NotificationService();
+            $title = "Reservation Cancelled";
+            $message = "$memberName has cancelled their reservation for the book \"{$reservation['book_title']}\".";
+            
+            foreach ($librarians as $librarianId) {
+                $notificationService->createNotification($librarianId, $title, $message, 'info', "reservations.php");
+            }
+        }
+    } catch (Exception $e) {
+        error_log("Error sending librarian notification: " . $e->getMessage());
+        // Don't fail the cancellation if notification fails
+    }
     
     // Return success response
     echo json_encode([
@@ -84,6 +117,6 @@ try {
     error_log("Error cancelling reservation: " . $e->getMessage());
     echo json_encode([
         'success' => false,
-        'error' => $e->getMessage()
+        'message' => $e->getMessage()
     ]);
 }

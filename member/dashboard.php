@@ -28,6 +28,7 @@ $db = Database::getInstance()->getConnection();
 $borrowedBooks = 0;
 $reservedBooks = 0;
 $dueBooks = 0;
+$booksDueIn24Hours = 0; // New stat for books due in 24 hours
 
 try {
     // Borrowed books count
@@ -40,16 +41,22 @@ try {
     $stmt->execute([$_SESSION['user_id']]);
     $reservedBooks = $stmt->fetch()['total'];
     
-    // Due books count
+    // Due books count (overdue)
     $stmt = $db->prepare("SELECT COUNT(*) as total FROM borrowings WHERE member_id = ? AND status = 'active' AND due_date < CURDATE()");
     $stmt->execute([$_SESSION['user_id']]);
     $dueBooks = $stmt->fetch()['total'];
+    
+    // Books due in 24 hours
+    $stmt = $db->prepare("SELECT COUNT(*) as total FROM borrowings WHERE member_id = ? AND status = 'active' AND due_date = DATE_ADD(CURDATE(), INTERVAL 1 DAY)");
+    $stmt->execute([$_SESSION['user_id']]);
+    $booksDueIn24Hours = $stmt->fetch()['total'];
     
 } catch (Exception $e) {
     // Handle error silently
     $borrowedBooks = 0;
     $reservedBooks = 0;
     $dueBooks = 0;
+    $booksDueIn24Hours = 0;
 }
 
 // Fetch library information
@@ -72,7 +79,7 @@ try {
 $recentActivity = [];
 try {
     $stmt = $db->prepare("
-        SELECT b.*, bk.title, bk.author,
+        SELECT b.*, bk.title, bk.author_name as author,
                CASE 
                    WHEN b.status = 'active' THEN 'Book Borrowed'
                    WHEN b.status = 'returned' THEN 'Book Returned'
@@ -80,8 +87,8 @@ try {
                END as activity_title
         FROM borrowings b
         JOIN books bk ON b.book_id = bk.id
-        WHERE b.user_id = ?
-        ORDER BY b.borrowed_at DESC
+        WHERE b.member_id = ?
+        ORDER BY b.created_at DESC
         LIMIT 4
     ");
     $stmt->execute([$_SESSION['user_id']]);
@@ -122,7 +129,7 @@ $pageTitle = 'Member Dashboard';
             max-width: 1200px;
             margin: 0 auto;
             padding: 2rem;
-            margin-top: 10px; /* Reduced margin to decrease space between navbar and heading */
+            margin-top: 20px; /* Increased margin to push header down slightly for observation */
         }
         
         .dashboard-header {
@@ -194,7 +201,7 @@ $pageTitle = 'Member Dashboard';
         /* Stat Cards Grid */
         .stat-cards {
             display: grid;
-            grid-template-columns: repeat(3, 1fr);
+            grid-template-columns: repeat(4, 1fr);
             gap: 1.5rem;
             margin-bottom: 2rem;
         }
@@ -530,7 +537,20 @@ $pageTitle = 'Member Dashboard';
                 </div>
             </div>
             
-            <!-- Fines Card - Removed as per requirements -->
+            <!-- Books Due Tomorrow Card -->
+            <div class="stat-card">
+                <div class="stat-card-header">
+                    <div class="stat-card-title">Due Tomorrow</div>
+                    <div class="stat-card-icon" style="background: rgba(243, 156, 18, 0.15); color: #f39c12;">
+                        <i class="fas fa-clock"></i>
+                    </div>
+                </div>
+                <div class="stat-card-value"><?php echo number_format($booksDueIn24Hours); ?></div>
+                <div class="stat-card-footer">
+                    <i class="fas fa-info-circle"></i>
+                    <span>due in 24 hours</span>
+                </div>
+            </div>
         </div>
         
         <div class="dashboard-sections">
@@ -557,7 +577,7 @@ $pageTitle = 'Member Dashboard';
                                     <?php echo htmlspecialchars($activity['title']); ?> by <?php echo htmlspecialchars($activity['author']); ?>
                                 </div>
                                 <div class="activity-time">
-                                    <?php echo date('M j, Y g:i A', strtotime($activity['borrowed_at'])); ?>
+                                    <?php echo date('M j, Y g:i A', strtotime($activity['created_at'])); ?>
                                 </div>
                             </div>
                         </li>

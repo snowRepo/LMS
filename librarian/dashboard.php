@@ -29,6 +29,8 @@ $totalBooks = 0;
 $totalMembers = 0;
 $borrowedBooks = 0;
 $attendanceToday = 0;
+$booksDueTomorrow = 0; // New stat for books due tomorrow
+$booksActuallyDue = 0; // New stat for actually due books
 
 try {
     // Total books
@@ -41,7 +43,7 @@ try {
     $stmt->execute([$_SESSION['user_id']]);
     $totalMembers = $stmt->fetch()['total'];
     
-    // Borrowed books
+    // Borrowed books (active status)
     $stmt = $db->prepare("SELECT COUNT(*) as total FROM borrowings b JOIN books bk ON b.book_id = bk.id WHERE bk.library_id = (SELECT library_id FROM users WHERE id = ?) AND b.status = 'active'");
     $stmt->execute([$_SESSION['user_id']]);
     $borrowedBooks = $stmt->fetch()['total'];
@@ -51,12 +53,24 @@ try {
     $stmt->execute([$_SESSION['user_id']]);
     $attendanceToday = $stmt->fetch()['total'];
     
+    // Books due tomorrow (active status with due_date = tomorrow)
+    $stmt = $db->prepare("SELECT COUNT(*) as total FROM borrowings b JOIN books bk ON b.book_id = bk.id WHERE bk.library_id = (SELECT library_id FROM users WHERE id = ?) AND b.status = 'active' AND b.due_date = DATE_ADD(CURDATE(), INTERVAL 1 DAY)");
+    $stmt->execute([$_SESSION['user_id']]);
+    $booksDueTomorrow = $stmt->fetch()['total'];
+    
+    // Actually due books (overdue status)
+    $stmt = $db->prepare("SELECT COUNT(*) as total FROM borrowings b JOIN books bk ON b.book_id = bk.id WHERE bk.library_id = (SELECT library_id FROM users WHERE id = ?) AND b.status = 'overdue'");
+    $stmt->execute([$_SESSION['user_id']]);
+    $booksActuallyDue = $stmt->fetch()['total'];
+    
 } catch (Exception $e) {
     // Handle error silently
     $totalBooks = 0;
     $totalMembers = 0;
     $borrowedBooks = 0;
     $attendanceToday = 0;
+    $booksDueTomorrow = 0;
+    $booksActuallyDue = 0;
 }
 
 // Fetch recent activity for this librarian
@@ -141,7 +155,7 @@ $pageTitle = 'Librarian Dashboard';
         /* Stat Cards Grid */
         .stat-cards {
             display: grid;
-            grid-template-columns: repeat(4, 1fr); /* Changed to 4 columns in one row */
+            grid-template-columns: repeat(3, 1fr);
             gap: 1.5rem;
             margin-bottom: 2rem;
         }
@@ -221,19 +235,48 @@ $pageTitle = 'Librarian Dashboard';
             color: #2ecc71;
         }
         
-        .books-due .stat-card-icon {
+        .books-due-tomorrow .stat-card-icon {
+            background: rgba(243, 156, 18, 0.15);
+            color: #f39c12;
+        }
+        
+        .books-actually-due .stat-card-icon {
             background: rgba(231, 76, 60, 0.15);
             color: #e74c3c;
         }
         
         /* Responsive adjustments */
-        @media (max-width: 768px) {
+        @media (max-width: 992px) {
             .stat-cards {
-                grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+                grid-template-columns: repeat(2, 1fr);
             }
             
             .stat-card-value {
                 font-size: 1.8rem;
+            }
+            
+            .dashboard-sections {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .stat-cards {
+                grid-template-columns: 1fr;
+            }
+            
+            .quick-links-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+        
+        @media (max-width: 576px) {
+            .quick-links-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .dashboard-container {
+                padding: 1rem;
             }
         }
         
@@ -417,6 +460,21 @@ $pageTitle = 'Librarian Dashboard';
                 </div>
             </div>
             
+            <!-- Books Due Tomorrow Card -->
+            <div class="stat-card books-due-tomorrow">
+                <div class="stat-card-header">
+                    <div class="stat-card-title">Due Tomorrow</div>
+                    <div class="stat-card-icon">
+                        <i class="fas fa-clock"></i>
+                    </div>
+                </div>
+                <div class="stat-card-value"><?php echo number_format($booksDueTomorrow); ?></div>
+                <div class="stat-card-footer">
+                    <i class="fas fa-info-circle"></i>
+                    <span>due in 24 hours</span>
+                </div>
+            </div>
+            
             <!-- Attendance Today Card -->
             <div class="stat-card attendance-today">
                 <div class="stat-card-header">
@@ -429,6 +487,21 @@ $pageTitle = 'Librarian Dashboard';
                 <div class="stat-card-footer">
                     <i class="fas fa-calendar-day"></i>
                     <span>visitors today</span>
+                </div>
+            </div>
+            
+            <!-- Actually Due Books Card -->
+            <div class="stat-card books-actually-due">
+                <div class="stat-card-header">
+                    <div class="stat-card-title">Books Due</div>
+                    <div class="stat-card-icon">
+                        <i class="fas fa-exclamation-circle"></i>
+                    </div>
+                </div>
+                <div class="stat-card-value"><?php echo number_format($booksActuallyDue); ?></div>
+                <div class="stat-card-footer">
+                    <i class="fas fa-calendar-times"></i>
+                    <span>overdue books</span>
                 </div>
             </div>
         </div>

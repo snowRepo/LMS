@@ -35,6 +35,7 @@ try {
             SELECT r.*, 
                    bk.title, 
                    bk.author_name,
+                   bk.subtitle as subtitle,
                    CONCAT(m.first_name, ' ', m.last_name) as member_name,
                    DATEDIFF(r.expiry_date, CURDATE()) as days_remaining
             FROM reservations r
@@ -52,6 +53,7 @@ try {
             SELECT r.*, 
                    bk.title, 
                    bk.author_name,
+                   bk.subtitle as subtitle,
                    CONCAT(m.first_name, ' ', m.last_name) as member_name,
                    DATEDIFF(r.expiry_date, CURDATE()) as days_remaining
             FROM reservations r
@@ -255,7 +257,7 @@ $pageTitle = 'Reservations';
         .status-pending { background: #fff3e0; color: #ef6c00; }
         .status-approved { background: #1e7e34; color: white; }
         .status-rejected { background: #ffebee; color: #c62828; }
-        .status-cancelled { background: #fafafa; color: #9e9e9e; }
+        .status-cancelled { background: #FFEBEE; color: #c62828; }
         .status-fulfilled { background: #e3f2fd; color: #1565c0; }
         .status-borrowed { background: #b2ebf2; color: #00796b; }
         .status-returned { background: #c8e6c9; color: #2e7d32; }
@@ -276,6 +278,18 @@ $pageTitle = 'Reservations';
         
         .book-info .text-muted {
             text-align: center;
+        }
+        
+        .book-title {
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+        }
+        
+        .book-subtitle {
+            font-size: 0.85rem;
+            color: #6c757d;
+            font-weight: normal;
+            margin-top: 0.1rem;
         }
         
         .search-bar {
@@ -463,6 +477,7 @@ $pageTitle = 'Reservations';
                             <thead>
                                 <tr>
                                     <th>Book</th>
+                                    <th>Author</th>
                                     <th>Requested By</th>
                                     <th>Reservation Date</th>
                                     <th>Expiry Date</th>
@@ -478,9 +493,14 @@ $pageTitle = 'Reservations';
                                 ?>
                                     <tr>
                                         <td class="book-info">
-                                            <div><strong><?php echo htmlspecialchars($reservation['title']); ?></strong></div>
-                                            <div class="text-muted"><?php echo htmlspecialchars($reservation['author_name'] ?? 'Unknown Author'); ?></div>
+                                            <div class="book-title">
+                                                <?php echo htmlspecialchars($reservation['title']); ?>
+                                                <?php if (!empty($reservation['subtitle'])): ?>
+                                                    - <?php echo htmlspecialchars($reservation['subtitle']); ?>
+                                                <?php endif; ?>
+                                            </div>
                                         </td>
+                                        <td><?php echo htmlspecialchars($reservation['author_name'] ?? 'Unknown Author'); ?></td>
                                         <td><?php echo htmlspecialchars($reservation['member_name']); ?></td>
                                         <td><?php echo $reservationDate->format('M j, Y'); ?></td>
                                         <td class="<?php echo $isExpired ? 'text-danger' : ''; ?>">

@@ -29,7 +29,7 @@ $db = Database::getInstance()->getConnection();
 $activeBorrowings = [];
 try {
     $stmt = $db->prepare("
-        SELECT b.*, bk.title, bk.isbn, bk.author_name,
+        SELECT b.*, bk.title, bk.subtitle, bk.isbn, bk.author_name,
                DATEDIFF(b.due_date, CURDATE()) as days_remaining,
                u.first_name as issued_by_first_name, u.last_name as issued_by_last_name
         FROM borrowings b
@@ -95,19 +95,21 @@ $pageTitle = 'My Borrowings';
     
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="css/toast.css">
     
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
         body {
             background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
             min-height: 100vh;
+            margin: 0;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             padding-top: 0;
+        }
+        
+        /* Ensure no default margin on body */
+        html, body {
+            margin: 0;
+            padding: 0;
         }
         
         .container {
@@ -362,6 +364,9 @@ $pageTitle = 'My Borrowings';
 <body>
     <?php include 'includes/member_navbar.php'; ?>
     
+    <!-- Toast Container -->
+    <div id="toast-container"></div>
+    
     <div class="container">
         <div class="page-header">
             <h1><i class="fas fa-exchange-alt"></i> My Borrowings</h1>
@@ -428,7 +433,14 @@ $pageTitle = 'My Borrowings';
                         <tbody>
                             <?php foreach ($activeBorrowings as $borrowing): ?>
                                 <tr>
-                                    <td><?php echo htmlspecialchars($borrowing['title']); ?></td>
+                                    <td>
+                                        <div><strong><?php echo htmlspecialchars($borrowing['title']); ?></strong></div>
+                                        <?php if (!empty($borrowing['subtitle'])): ?>
+                                            <div style="font-size: 0.85rem; color: #6c757d; margin-top: 0.25rem;">
+                                                <?php echo htmlspecialchars($borrowing['subtitle']); ?>
+                                            </div>
+                                        <?php endif; ?>
+                                    </td>
                                     <td><?php echo htmlspecialchars($borrowing['author_name'] ?? 'Unknown'); ?></td>
                                     <td><?php echo date('M j, Y', strtotime($borrowing['issue_date'])); ?></td>
                                     <td><?php echo date('M j, Y', strtotime($borrowing['due_date'])); ?></td>

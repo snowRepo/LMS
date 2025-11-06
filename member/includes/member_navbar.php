@@ -73,8 +73,21 @@ if (isset($_SESSION['user_id'])) {
         top: 0;
         z-index: 1000;
         border-bottom: 1px solid #bdd9e6;
-        margin: 0;
+        margin: 0 !important;
         font-size: 0.9rem; /* Reduced base font size */
+        box-sizing: border-box !important;
+        width: 100% !important;
+        min-height: 50px !important;
+        /* Reset potentially conflicting properties */
+        margin-top: 0 !important;
+        margin-bottom: 0 !important;
+        padding-top: 0 !important;
+        padding-bottom: 0 !important;
+    }
+    
+    /* Ensure navbar elements are not affected by page styles */
+    .member-navbar, .member-navbar *, .member-navbar *::before, .member-navbar *::after {
+        box-sizing: border-box !important;
     }
     
     .navbar-brand {
@@ -332,6 +345,13 @@ if (isset($_SESSION['user_id'])) {
 
 <!-- Member Navbar -->
 <nav class="member-navbar">
+<style>
+    /* Ensure consistent body styling across all pages */
+    body {
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+</style>
     <div class="navbar-brand">
         <a href="dashboard.php">
             <i class="fas fa-book-open"></i>

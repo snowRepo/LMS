@@ -32,6 +32,7 @@ try {
                    bk.title, 
                    bk.isbn, 
                    bk.author_name as author,
+                   bk.subtitle as subtitle,
                    CONCAT(m.first_name, ' ', m.last_name) as member_name,
                    CASE 
                        WHEN r.status = 'pending' THEN 'Pending'
@@ -70,6 +71,7 @@ try {
                    bk.title, 
                    bk.isbn, 
                    bk.author_name as author,
+                   bk.subtitle as subtitle,
                    CONCAT(m.first_name, ' ', m.last_name) as member_name,
                    CASE 
                        WHEN r.status = 'pending' THEN 'Pending'
@@ -268,8 +270,8 @@ $pageTitle = 'Reservation History';
         }
         
         .status-cancelled { 
-            background: #fafafa; 
-            color: #9e9e9e; 
+            background: #FFEBEE; 
+            color: #c62828; 
         }
         
         .status-fulfilled { 
@@ -390,6 +392,18 @@ $pageTitle = 'Reservation History';
             text-align: center;
         }
         
+        .book-title {
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+        }
+        
+        .book-subtitle {
+            font-size: 0.85rem;
+            color: #6c757d;
+            font-weight: normal;
+            margin-top: 0.1rem;
+        }
+        
         @media (max-width: 768px) {
             .container {
                 padding: 1rem;
@@ -461,6 +475,7 @@ $pageTitle = 'Reservation History';
                             <thead>
                                 <tr>
                                     <th>Book</th>
+                                    <th>Author</th>
                                     <th>Requested By</th>
                                     <th>Reservation Date</th>
                                     <th>Expiry Date</th>
@@ -476,11 +491,14 @@ $pageTitle = 'Reservation History';
                                 ?>
                                     <tr>
                                         <td class="book-info">
-                                            <div><strong><?php echo htmlspecialchars($reservation['title']); ?></strong></div>
-                                            <div class="text-muted">
-                                                <?php echo htmlspecialchars($reservation['author']); ?>
+                                            <div class="book-title">
+                                                <?php echo htmlspecialchars($reservation['title']); ?>
+                                                <?php if (!empty($reservation['subtitle'])): ?>
+                                                    - <?php echo htmlspecialchars($reservation['subtitle']); ?>
+                                                <?php endif; ?>
                                             </div>
                                         </td>
+                                        <td><?php echo htmlspecialchars($reservation['author']); ?></td>
                                         <td><?php echo htmlspecialchars($reservation['member_name']); ?></td>
                                         <td><?php echo $reservationDate->format('M j, Y'); ?></td>
                                         <td class="<?php echo $isExpired ? 'text-danger' : ''; ?>">
