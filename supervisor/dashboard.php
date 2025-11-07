@@ -77,7 +77,7 @@ try {
         SELECT u.id, u.first_name, u.last_name, u.username, 
                COUNT(a.id) as attendance_count
         FROM users u
-        LEFT JOIN attendance a ON u.id = a.user_id
+        LEFT JOIN attendance a ON u.user_id = a.user_id
         WHERE u.library_id = ? AND u.role = 'member' AND u.status = 'active'
         GROUP BY u.id, u.first_name, u.last_name, u.username
         ORDER BY attendance_count DESC

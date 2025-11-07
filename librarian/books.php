@@ -41,7 +41,7 @@ try {
     $params = [$libraryId];
     
     if (!empty($search)) {
-        $countQuery .= " AND (b.title LIKE ? OR b.isbn LIKE ? OR b.book_id LIKE ?)";
+        $countQuery .= " AND (b.title LIKE ? OR b.author_name LIKE ? OR b.book_id LIKE ?)";
         $params[] = "%$search%";
         $params[] = "%$search%";
         $params[] = "%$search%";
@@ -62,7 +62,7 @@ try {
     $params = [$libraryId];
     
     if (!empty($search)) {
-        $query .= " AND (b.title LIKE ? OR b.isbn LIKE ? OR b.book_id LIKE ?)";
+        $query .= " AND (b.title LIKE ? OR b.author_name LIKE ? OR b.book_id LIKE ?)";
         $params[] = "%$search%";
         $params[] = "%$search%";
         $params[] = "%$search%";
@@ -796,7 +796,7 @@ $pageTitle = 'Books Management';
                                    name="search" 
                                    id="search"
                                    class="search-input" 
-                                   placeholder="Search by title, ISBN, or Book ID..." 
+                                   placeholder="Search by title, author, or Book ID..." 
                                    value="<?php echo htmlspecialchars($search); ?>">
                             <button type="submit" class="search-btn">
                                 <i class="fas fa-search"></i>

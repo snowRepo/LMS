@@ -112,7 +112,7 @@ try {
         }
 
         .page-header h1 {
-            color: #495057;
+            color: #212529;
             font-size: 2rem;
             margin-bottom: 0.5rem;
         }

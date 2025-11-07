@@ -71,7 +71,7 @@ try {
         AND attendance_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
         ORDER BY attendance_date DESC
     ");
-    $stmt->execute([$member['id'], $libraryId]);
+    $stmt->execute([$userId, $libraryId]);
     $attendanceHistory = $stmt->fetchAll(PDO::FETCH_COLUMN);
     
     // Get borrowing history for the member
@@ -103,7 +103,7 @@ try {
         if (in_array($dateStr, $attendanceHistory)) {
             $presentLast7Days++;
         }
-    }
+        }
     
     $pageTitle = 'Detailed Member Report - ' . $member['first_name'] . ' ' . $member['last_name'];
 } catch (Exception $e) {

@@ -561,8 +561,8 @@ $pageTitle = 'Reports';
                             <?php foreach ($popularBooks as $book): ?>
                                 <tr>
                                     <td><?php echo htmlspecialchars($book['title']); ?></td>
-                                    <td><?php echo htmlspecialchars($book['author']); ?></td>
-                                    <td><?php echo htmlspecialchars($book['isbn']); ?></td>
+                                    <td><?php echo htmlspecialchars($book['author_name'] ?? ''); ?></td>
+                                    <td><?php echo htmlspecialchars($book['isbn'] ?? ''); ?></td>
                                     <td><?php echo $book['borrow_count']; ?></td>
                                 </tr>
                             <?php endforeach; ?>
