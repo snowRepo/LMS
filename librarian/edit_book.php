@@ -181,6 +181,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $bookId, $libraryId
             ]);
             
+            // Log the book update activity
+            try {
+                $activityStmt = $db->prepare("
+                    INSERT INTO activity_logs 
+                    (user_id, library_id, action, description, created_at)
+                    VALUES (?, ?, 'update_book', ?, NOW())
+                ");
+                $activityStmt->execute([
+                    $_SESSION['user_id'],
+                    $libraryId,
+                    'Updated book: ' . $title
+                ]);
+            } catch (Exception $e) {
+                // Log the error but don't fail the book update
+                error_log('Failed to log activity: ' . $e->getMessage());
+            }
+            
             header('Location: view_book.php?id=' . urlencode($bookId) . '&success=' . urlencode('Book updated successfully'));
             exit;
         }
@@ -230,7 +247,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         .page-header h1 {
-            color: #495057;
+            color: #212529;
             font-size: 2rem;
             margin-bottom: 0.5rem;
         }

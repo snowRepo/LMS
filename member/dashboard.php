@@ -75,24 +75,109 @@ try {
     $libraryInfo = [];
 }
 
-// Fetch recent borrowing activity for this member
+// Fetch recent activity for this member (borrowings, reservations, and profile updates)
 $recentActivity = [];
 try {
-    $stmt = $db->prepare("
-        SELECT b.*, bk.title, bk.author_name as author,
-               CASE 
-                   WHEN b.status = 'active' THEN 'Book Borrowed'
-                   WHEN b.status = 'returned' THEN 'Book Returned'
-                   ELSE 'Activity'
-               END as activity_title
-        FROM borrowings b
-        JOIN books bk ON b.book_id = bk.id
-        WHERE b.member_id = ?
-        ORDER BY b.created_at DESC
-        LIMIT 4
-    ");
-    $stmt->execute([$_SESSION['user_id']]);
-    $recentActivity = $stmt->fetchAll();
+    // First, try to get activities with profile updates (if updated_at column exists)
+    try {
+        $stmt = $db->prepare("
+            SELECT 
+                'borrowing' as activity_type,
+                b.id as activity_id,
+                b.status,
+                b.created_at,
+                bk.title,
+                bk.author_name as author,
+                CASE 
+                    WHEN b.status = 'active' THEN 'Book Borrowed'
+                    WHEN b.status = 'returned' THEN 'Book Returned'
+                    ELSE 'Activity'
+                END as activity_title
+            FROM borrowings b
+            JOIN books bk ON b.book_id = bk.id
+            WHERE b.member_id = ?
+            
+            UNION ALL
+            
+            SELECT 
+                'reservation' as activity_type,
+                r.id as activity_id,
+                r.status,
+                r.created_at,
+                bk.title,
+                bk.author_name as author,
+                CASE 
+                    WHEN r.status = 'pending' THEN 'Reservation Made'
+                    WHEN r.status = 'approved' THEN 'Reservation Approved'
+                    WHEN r.status = 'rejected' THEN 'Reservation Rejected'
+                    ELSE CONCAT('Reservation ', r.status)
+                END as activity_title
+            FROM reservations r
+            JOIN books bk ON r.book_id = bk.id
+            WHERE r.member_id = ?
+            
+            UNION ALL
+            
+            SELECT 
+                'profile' as activity_type,
+                u.id as activity_id,
+                'updated' as status,
+                u.updated_at as created_at,
+                'Profile' as title,
+                '' as author,
+                'Profile Updated' as activity_title
+            FROM users u
+            WHERE u.id = ? AND u.updated_at IS NOT NULL AND u.updated_at > '2000-01-01'
+            
+            ORDER BY created_at DESC
+            LIMIT 4
+        ");
+        $stmt->execute([$_SESSION['user_id'], $_SESSION['user_id'], $_SESSION['user_id']]);
+        $recentActivity = $stmt->fetchAll();
+    } catch (Exception $e) {
+        // If the above query fails due to missing updated_at column, fall back to borrowings and reservations only
+        $stmt = $db->prepare("
+            SELECT 
+                'borrowing' as activity_type,
+                b.id as activity_id,
+                b.status,
+                b.created_at,
+                bk.title,
+                bk.author_name as author,
+                CASE 
+                    WHEN b.status = 'active' THEN 'Book Borrowed'
+                    WHEN b.status = 'returned' THEN 'Book Returned'
+                    ELSE 'Activity'
+                END as activity_title
+            FROM borrowings b
+            JOIN books bk ON b.book_id = bk.id
+            WHERE b.member_id = ?
+            
+            UNION ALL
+            
+            SELECT 
+                'reservation' as activity_type,
+                r.id as activity_id,
+                r.status,
+                r.created_at,
+                bk.title,
+                bk.author_name as author,
+                CASE 
+                    WHEN r.status = 'pending' THEN 'Reservation Made'
+                    WHEN r.status = 'approved' THEN 'Reservation Approved'
+                    WHEN r.status = 'rejected' THEN 'Reservation Rejected'
+                    ELSE CONCAT('Reservation ', r.status)
+                END as activity_title
+            FROM reservations r
+            JOIN books bk ON r.book_id = bk.id
+            WHERE r.member_id = ?
+            
+            ORDER BY created_at DESC
+            LIMIT 4
+        ");
+        $stmt->execute([$_SESSION['user_id'], $_SESSION['user_id']]);
+        $recentActivity = $stmt->fetchAll();
+    }
 } catch (Exception $e) {
     // Handle error silently
     $recentActivity = [];
@@ -185,6 +270,8 @@ $pageTitle = 'Member Dashboard';
         .library-detail-item {
             display: flex;
             flex-direction: column;
+            align-items: center;
+            text-align: center;
         }
         
         .library-detail-label {
@@ -565,16 +652,47 @@ $pageTitle = 'Member Dashboard';
                         <?php foreach ($recentActivity as $activity): ?>
                         <li class="activity-item">
                             <div class="activity-icon">
-                                <?php if ($activity['status'] == 'active'): ?>
-                                    <i class="fas fa-book"></i>
+                                <?php 
+                                // Determine icon based on activity type
+                                if (isset($activity['activity_type']) && $activity['activity_type'] == 'borrowing'): 
+                                    if ($activity['status'] == 'active'): ?>
+                                        <i class="fas fa-book"></i>
+                                    <?php else: ?>
+                                        <i class="fas fa-book-reader"></i>
+                                    <?php endif; ?>
+                                <?php elseif (isset($activity['activity_type']) && $activity['activity_type'] == 'reservation'): ?>
+                                    <?php if ($activity['status'] == 'pending'): ?>
+                                        <i class="fas fa-calendar-plus"></i>
+                                    <?php elseif ($activity['status'] == 'approved'): ?>
+                                        <i class="fas fa-calendar-check"></i>
+                                    <?php elseif ($activity['status'] == 'rejected'): ?>
+                                        <i class="fas fa-calendar-times"></i>
+                                    <?php else: ?>
+                                        <i class="fas fa-calendar"></i>
+                                    <?php endif; ?>
+                                <?php elseif (isset($activity['activity_type']) && $activity['activity_type'] == 'profile'): ?>
+                                    <i class="fas fa-user"></i>
                                 <?php else: ?>
-                                    <i class="fas fa-book-reader"></i>
+                                    <?php if ($activity['status'] == 'active'): ?>
+                                        <i class="fas fa-book"></i>
+                                    <?php else: ?>
+                                        <i class="fas fa-book-reader"></i>
+                                    <?php endif; ?>
                                 <?php endif; ?>
                             </div>
                             <div class="activity-content">
                                 <div class="activity-title"><?php echo htmlspecialchars($activity['activity_title']); ?></div>
                                 <div class="activity-description">
-                                    <?php echo htmlspecialchars($activity['title']); ?> by <?php echo htmlspecialchars($activity['author']); ?>
+                                    <?php 
+                                    // Show appropriate description based on activity type
+                                    if (isset($activity['activity_type']) && $activity['activity_type'] == 'profile'): ?>
+                                        Your profile information was updated
+                                    <?php else: ?>
+                                        <?php echo htmlspecialchars($activity['title']); ?> 
+                                        <?php if (!empty($activity['author'])): ?>
+                                            by <?php echo htmlspecialchars($activity['author']); ?>
+                                        <?php endif; ?>
+                                    <?php endif; ?>
                                 </div>
                                 <div class="activity-time">
                                     <?php echo date('M j, Y g:i A', strtotime($activity['created_at'])); ?>
@@ -586,7 +704,7 @@ $pageTitle = 'Member Dashboard';
                         <li class="activity-item">
                             <div class="activity-content">
                                 <div class="activity-title">No Recent Activity</div>
-                                <div class="activity-description">You haven't borrowed any books yet</div>
+                                <div class="activity-description">You haven't performed any activities yet</div>
                             </div>
                         </li>
                     <?php endif; ?>

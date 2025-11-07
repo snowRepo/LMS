@@ -61,7 +61,7 @@ try {
     }
     
     // Get the integer ID of the member for attendance table
-    $memberIntegerId = $member['id'];
+    $memberUserId = $member['user_id'];
     
     // Get attendance records for the specified date range with time information
     $stmt = $db->prepare("
@@ -71,7 +71,7 @@ try {
         AND attendance_date BETWEEN ? AND ?
         ORDER BY attendance_date DESC
     ");
-    $stmt->execute([$memberIntegerId, $libraryId, $startDate, $endDate]);
+    $stmt->execute([$memberUserId, $libraryId, $startDate, $endDate]);
     $attendanceRecords = $stmt->fetchAll();
     
     // Calculate attendance statistics
@@ -135,7 +135,7 @@ try {
         }
 
         .page-header h1 {
-            color: #495057;
+            color: #212529;
             font-size: 2rem;
             margin-bottom: 0.5rem;
         }

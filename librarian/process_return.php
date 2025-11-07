@@ -100,6 +100,23 @@ try {
     ");
     $stmt->execute([$borrowing['book_id']]);
     
+    // Log the book return activity
+    try {
+        $activityStmt = $db->prepare("
+            INSERT INTO activity_logs 
+            (user_id, library_id, action, description, created_at)
+            VALUES (?, ?, 'return_book', ?, NOW())
+        ");
+        $activityStmt->execute([
+            $_SESSION['user_id'],
+            $_SESSION['library_id'],
+            'Returned book: ' . $borrowing['book_title']
+        ]);
+    } catch (Exception $e) {
+        // Log the error but don't fail the return process
+        error_log('Failed to log activity: ' . $e->getMessage());
+    }
+    
     // Send notification to member about the return
     try {
         // Get member details for notification

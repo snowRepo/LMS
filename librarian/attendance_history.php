@@ -54,7 +54,7 @@ try {
     }
     
     // Get the integer ID of the member for attendance table
-    $memberIntegerId = $member['id'];
+    $memberUserId = $member['user_id'];
     
     // Get attendance history for the member (last 30 days) with time information
     $stmt = $db->prepare("
@@ -64,7 +64,7 @@ try {
         AND attendance_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
         ORDER BY attendance_date DESC
     ");
-    $stmt->execute([$memberIntegerId, $libraryId]);
+    $stmt->execute([$memberUserId, $libraryId]);
     $attendanceHistory = $stmt->fetchAll();
     
     $pageTitle = 'Attendance History';
@@ -108,7 +108,7 @@ try {
         }
 
         .page-header h1 {
-            color: #495057;
+            color: #212529;
             font-size: 2rem;
             margin-bottom: 0.5rem;
         }

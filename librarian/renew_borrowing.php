@@ -175,7 +175,7 @@ $defaultNewDueDate->modify('+14 days');
         }
         
         .page-header h1 {
-            color: #495057;
+            color: #212529;
             font-size: 2rem;
             margin-bottom: 0.5rem;
         }
@@ -594,7 +594,7 @@ $defaultNewDueDate->modify('+14 days');
                             </button>
                             
                             <a href="borrowing.php" class="btn btn-secondary">
-                                <i class="fas fa-times"></i> Cancel
+                                Cancel
                             </a>
                         </div>
                     </form>

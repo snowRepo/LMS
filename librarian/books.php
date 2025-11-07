@@ -27,6 +27,8 @@ $libraryId = $_SESSION['library_id'];
 
 // Handle search and pagination
 $search = isset($_GET['search']) ? trim($_GET['search']) : '';
+$categoryFilter = isset($_GET['category']) ? $_GET['category'] : '';
+$sort = isset($_GET['sort']) ? $_GET['sort'] : 'title';
 $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
 $limit = 10; // Books per page
 $offset = ($page - 1) * $limit;
@@ -35,47 +37,60 @@ try {
     $db = Database::getInstance()->getConnection();
     
     // Get total books count for pagination
+    $countQuery = "SELECT COUNT(*) as total FROM books b WHERE b.library_id = ?";
+    $params = [$libraryId];
+    
     if (!empty($search)) {
-        $stmt = $db->prepare("
-            SELECT COUNT(*) as total 
-            FROM books b 
-            WHERE b.library_id = ? 
-            AND (b.title LIKE ? OR b.isbn LIKE ? OR b.book_id LIKE ?)
-        ");
-        $stmt->execute([$libraryId, "%$search%", "%$search%", "%$search%"]);
-    } else {
-        $stmt = $db->prepare("SELECT COUNT(*) as total FROM books WHERE library_id = ?");
-        $stmt->execute([$libraryId]);
+        $countQuery .= " AND (b.title LIKE ? OR b.isbn LIKE ? OR b.book_id LIKE ?)";
+        $params[] = "%$search%";
+        $params[] = "%$search%";
+        $params[] = "%$search%";
     }
+    
+    if (!empty($categoryFilter)) {
+        $countQuery .= " AND b.category_id = ?";
+        $params[] = $categoryFilter;
+    }
+    
+    $stmt = $db->prepare($countQuery);
+    $stmt->execute($params);
     $totalBooks = $stmt->fetch()['total'];
     $totalPages = ceil($totalBooks / $limit);
     
     // Get books for current page
+    $query = "SELECT b.*, c.name as category_name FROM books b LEFT JOIN categories c ON b.category_id = c.id WHERE b.library_id = ?";
+    $params = [$libraryId];
+    
     if (!empty($search)) {
-        $stmt = $db->prepare("
-            SELECT b.*, c.name as category_name
-            FROM books b
-            LEFT JOIN categories c ON b.category_id = c.id
-            WHERE b.library_id = ? 
-            AND (b.title LIKE ? OR b.isbn LIKE ? OR b.book_id LIKE ?)
-            ORDER BY b.created_at DESC
-            LIMIT ? OFFSET ?
-        ");
-        $stmt->execute([$libraryId, "%$search%", "%$search%", "%$search%", $limit, $offset]);
-    } else {
-        $stmt = $db->prepare("
-            SELECT b.*, c.name as category_name
-            FROM books b
-            LEFT JOIN categories c ON b.category_id = c.id
-            WHERE b.library_id = ?
-            ORDER BY b.created_at DESC
-            LIMIT ? OFFSET ?
-        ");
-        $stmt->execute([$libraryId, $limit, $offset]);
+        $query .= " AND (b.title LIKE ? OR b.isbn LIKE ? OR b.book_id LIKE ?)";
+        $params[] = "%$search%";
+        $params[] = "%$search%";
+        $params[] = "%$search%";
     }
+    
+    if (!empty($categoryFilter)) {
+        $query .= " AND b.category_id = ?";
+        $params[] = $categoryFilter;
+    }
+    
+    // Add sorting
+    $validSorts = ['title', 'author_name'];
+    
+    if (!in_array($sort, $validSorts)) {
+        $sort = 'title';
+    }
+    
+    $query .= " ORDER BY b.$sort ASC";
+    
+    $query .= " LIMIT ? OFFSET ?";
+    $params[] = $limit;
+    $params[] = $offset;
+    
+    $stmt = $db->prepare($query);
+    $stmt->execute($params);
     $books = $stmt->fetchAll();
     
-    // Get categories for the form
+    // Get categories for the form and filters
     $stmt = $db->prepare("SELECT id, name FROM categories WHERE library_id = ? AND status = 'active' ORDER BY name");
     $stmt->execute([$libraryId]);
     $categories = $stmt->fetchAll();
@@ -181,23 +196,76 @@ $pageTitle = 'Books Management';
             color: var(--gray-900);
             margin: 0;
         }
-
-        .search-bar {
+        
+        /* Search and Filter Bar */
+        .search-filter-bar {
             display: flex;
+            flex-wrap: wrap;
             gap: 1rem;
             margin-bottom: 1.5rem;
-            max-width: 600px;
-            margin: 0 auto 1.5rem auto;
-            justify-content: center;
+            align-items: end;
         }
-
+        
+        .filter-container {
+            flex: 1;
+            display: flex;
+            gap: 1rem;
+            align-items: end;
+        }
+        
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            width: fit-content;
+        }
+        
+        .filter-group label {
+            font-weight: 500;
+            margin-bottom: 0.5rem;
+            color: var(--gray-700);
+        }
+        
+        .filter-select {
+            padding: 0.75rem;
+            border: 1.5px solid #95A5A6;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: var(--transition);
+            width: fit-content;
+            height: calc(2.5rem + 3px);
+            appearance: none;
+            background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23495057' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+            background-repeat: no-repeat;
+            background-position: right 0.75rem center;
+            background-size: 1rem;
+            padding-right: 2.5rem;
+        }
+        
+        .filter-select:focus {
+            border-color: var(--primary-color);
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.15);
+        }
+        
+        .search-container {
+            display: flex;
+            gap: 0.5rem;
+            width: 400px;
+            margin-left: auto;
+        }
+        
+        .search-group {
+            display: flex;
+            gap: 0.5rem;
+            width: 100%;
+        }
+        
         .search-input {
             flex: 1;
             padding: 0.75rem;
             border: 1.5px solid #95A5A6;
             border-radius: 8px;
             font-size: 1rem;
-            max-width: 400px;
             transition: var(--transition);
         }
         
@@ -233,11 +301,7 @@ $pageTitle = 'Books Management';
             transform: translateY(-2px);
             box-shadow: 0 6px 12px rgba(52, 152, 219, 0.3);
         }
-
-        .search-btn-text {
-            display: none;
-        }
-
+        
         .btn-primary {
             background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
             color: white;
@@ -295,6 +359,12 @@ $pageTitle = 'Books Management';
             background: #e0a800;
             transform: translateY(-2px);
             box-shadow: 0 6px 20px rgba(255, 193, 7, 0.3);
+        }
+        
+        .filter-actions {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
         }
 
         .table-container {
@@ -386,7 +456,15 @@ $pageTitle = 'Books Management';
             padding: 0.5rem 1rem;
             font-size: 0.9rem;
         }
-
+        
+        /* Add this CSS rule for author column truncation */
+        .author-column {
+            max-width: 200px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        
         /* Prevent background scrolling when modal is open */
         body.modal-open {
             overflow: hidden;
@@ -618,133 +696,43 @@ $pageTitle = 'Books Management';
             gap: 1rem;
         }
 
+        /* Responsive */
         @media (max-width: 768px) {
-            .container {
-                padding: 1rem;
-            }
-            
-            .modal-content {
-                width: 95%;
-                margin: 5% auto;
-                max-height: 95vh;
-            }
-            
-            .modal-sections {
+            .search-filter-bar {
                 flex-direction: column;
             }
             
-            .section-tab {
-                border-bottom: 1px solid var(--gray-200);
-                border-left: 3px solid transparent;
+            .filter-container {
+                flex-direction: column;
+                width: 100%;
             }
             
-            .section-tab.active {
-                border-bottom: 1px solid var(--gray-200);
-                border-left: 3px solid var(--primary-color);
+            .filter-group {
+                width: 100%;
             }
             
-            .form-row {
-                grid-template-columns: 1fr;
+            .search-container {
+                width: 100%;
+                margin-left: 0;
             }
-        }
-        
-        /* Toast notification styles */
-        .toast-container {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            z-index: 9999;
-        }
-
-        .toast {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 16px 20px;
-            border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-            margin-bottom: 12px;
-            min-width: 300px;
-            max-width: 400px;
-            animation: toastSlideIn 0.3s ease-out forwards;
-            opacity: 0;
-            transform: translateX(100%);
-        }
-
-        .toast.show {
-            opacity: 1;
-            transform: translateX(0);
-        }
-
-        .toast.hide {
-            animation: toastSlideOut 0.3s ease-in forwards;
-        }
-
-        @keyframes toastSlideIn {
-            from {
-                opacity: 0;
-                transform: translateX(100%);
+            
+            .search-group {
+                width: 100%;
             }
-            to {
-                opacity: 1;
-                transform: translateX(0);
+            
+            .filter-actions {
+                width: 100%;
+                justify-content: center;
             }
-        }
-
-        @keyframes toastSlideOut {
-            from {
-                opacity: 1;
-                transform: translateX(0);
+            
+            .books-table {
+                font-size: 0.8rem;
             }
-            to {
-                opacity: 0;
-                transform: translateX(100%);
+            
+            .books-table th,
+            .books-table td {
+                padding: 0.5rem;
             }
-        }
-
-        /* Updated to use dark shades of green and red without additional design */
-        .toast-success {
-            background-color: #2e7d32; /* Dark green */
-            color: white;
-        }
-
-        .toast-error {
-            background-color: #c62828; /* Dark red */
-            color: white;
-        }
-
-        .toast-info {
-            background-color: #1565c0; /* Dark blue */
-            color: white;
-        }
-
-        .toast-warning {
-            background-color: #ef6c00; /* Dark orange */
-            color: white;
-        }
-
-        .toast-icon {
-            font-size: 1.2rem;
-            font-weight: bold;
-        }
-
-        .toast-content {
-            flex: 1;
-            font-size: 0.95rem;
-        }
-
-        .toast-close {
-            background: none;
-            border: none;
-            font-size: 1.2rem;
-            cursor: pointer;
-            color: inherit;
-            opacity: 0.7;
-            transition: opacity 0.2s;
-        }
-
-        .toast-close:hover {
-            opacity: 1;
         }
     </style>
 </head>
@@ -772,24 +760,54 @@ $pageTitle = 'Books Management';
                 </button>
             </div>
             
-            <!-- Search Bar -->
-            <div class="search-bar">
-                <form method="GET" style="display: flex; width: 100%; max-width: 500px; gap: 1rem;">
-                    <input type="text" 
-                           name="search" 
-                           class="search-input" 
-                           placeholder="Search by title, ISBN, or Book ID..." 
-                           value="<?php echo htmlspecialchars($search); ?>">
-                    <button type="submit" class="search-btn">
-                        <i class="fas fa-search"></i>
-                        <span class="search-btn-text">Search</span>
-                    </button>
-                    <?php if (!empty($search)): ?>
-                        <a href="books.php" class="btn btn-secondary" style="padding: 0.75rem 1rem;">
-                            <i class="fas fa-times"></i>
-                            <span class="search-btn-text">Clear</span>
-                        </a>
-                    <?php endif; ?>
+            <!-- Search and Filter Bar -->
+            <div class="search-filter-bar">
+                <form method="GET" style="display: contents;">
+                    <input type="hidden" name="_" value="<?php echo time(); ?>">
+                    <div class="filter-container">
+                        <div class="filter-group">
+                            <label for="category">Filter by Category</label>
+                            <select name="category" id="category" class="filter-select">
+                                <option value="">All Categories</option>
+                                <?php foreach ($categories as $category): ?>
+                                    <option value="<?php echo $category['id']; ?>" <?php echo $categoryFilter == $category['id'] ? 'selected' : ''; ?>>
+                                        <?php echo htmlspecialchars($category['name']); ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        
+                        <div class="filter-group">
+                            <label for="sort">Sort by</label>
+                            <select name="sort" id="sort" class="filter-select">
+                                <option value="title" <?php echo $sort === 'title' ? 'selected' : ''; ?>>Title (A-Z)</option>
+                                <option value="author_name" <?php echo $sort === 'author_name' ? 'selected' : ''; ?>>Author (A-Z)</option>
+                            </select>
+                        </div>
+                        
+                        <div class="filter-actions">
+                            <input type="submit" value="Filter" class="btn btn-primary">
+                        </div>
+                    </div>
+                    
+                    <div class="search-container">
+                        <div class="search-group">
+                            <input type="text" 
+                                   name="search" 
+                                   id="search"
+                                   class="search-input" 
+                                   placeholder="Search by title, ISBN, or Book ID..." 
+                                   value="<?php echo htmlspecialchars($search); ?>">
+                            <button type="submit" class="search-btn">
+                                <i class="fas fa-search"></i>
+                            </button>
+                            <?php if (!empty($search) || !empty($categoryFilter)): ?>
+                                <a href="books.php" class="btn btn-secondary">
+                                    <i class="fas fa-times"></i>
+                                </a>
+                            <?php endif; ?>
+                        </div>
+                    </div>
                 </form>
             </div>
             
@@ -825,7 +843,22 @@ $pageTitle = 'Books Management';
                                     </td>
                                     <td><?php echo htmlspecialchars($book['book_id']); ?></td>
                                     <td><?php echo htmlspecialchars($book['title']); ?><?php if (!empty($book['subtitle'])): ?> - <?php echo htmlspecialchars($book['subtitle']); ?><?php endif; ?></td>
-                                    <td><?php echo !empty($book['author_name']) ? htmlspecialchars($book['author_name']) : 'N/A'; ?></td>
+                                    <td style="max-width: 150px; white-space: normal; word-wrap: break-word; line-height: 1.8;" title="<?php echo !empty($book['author_name']) ? htmlspecialchars($book['author_name']) : 'N/A'; ?>">
+                                        <?php 
+                                        $authorName = !empty($book['author_name']) ? htmlspecialchars($book['author_name']) : 'N/A';
+                                        // Always display author names vertically (top to bottom)
+                                        if (strpos($authorName, ',') !== false) {
+                                            // Multiple authors - split and display each on separate line
+                                            $authors = explode(',', $authorName);
+                                            foreach ($authors as $author) {
+                                                echo trim($author) . '<br>';
+                                            }
+                                        } else {
+                                            // Single author - still display on its own line
+                                            echo $authorName;
+                                        }
+                                        ?>
+                                    </td>
                                     <td><?php echo htmlspecialchars($book['category_name'] ?? 'N/A'); ?></td>
                                     <td><?php echo htmlspecialchars($book['total_copies'] ?? 1); ?></td>
                                     <td>
@@ -860,9 +893,29 @@ $pageTitle = 'Books Management';
             <!-- Pagination -->
             <?php if ($totalPages > 1): ?>
                 <div class="pagination">
+                    <?php 
+                    // Build query string for pagination links
+                    $queryString = '';
+                    $params = [];
+                    
+                    if (!empty($search)) {
+                        $params['search'] = $search;
+                    }
+                    
+                    if (!empty($categoryFilter)) {
+                        $params['category'] = $categoryFilter;
+                    }
+                    
+                    if (!empty($sort) && $sort !== 'title') {
+                        $params['sort'] = $sort;
+                    }
+                    
+                    $queryString = !empty($params) ? '&' . http_build_query($params) : '';
+                    ?>
+                    
                     <?php if ($page > 1): ?>
-                        <a href="?page=1<?php echo !empty($search) ? '&search=' . urlencode($search) : ''; ?>">&laquo; First</a>
-                        <a href="?page=<?php echo $page - 1; ?><?php echo !empty($search) ? '&search=' . urlencode($search) : ''; ?>">&lsaquo; Prev</a>
+                        <a href="?page=1<?php echo $queryString; ?>">&laquo; First</a>
+                        <a href="?page=<?php echo $page - 1; ?><?php echo $queryString; ?>">&lsaquo; Prev</a>
                     <?php endif; ?>
                     
                     <?php 
@@ -873,13 +926,13 @@ $pageTitle = 'Books Management';
                         <?php if ($i == $page): ?>
                             <span class="current"><?php echo $i; ?></span>
                         <?php else: ?>
-                            <a href="?page=<?php echo $i; ?><?php echo !empty($search) ? '&search=' . urlencode($search) : ''; ?>"><?php echo $i; ?></a>
+                            <a href="?page=<?php echo $i; ?><?php echo $queryString; ?>"><?php echo $i; ?></a>
                         <?php endif; ?>
                     <?php endfor; ?>
                     
                     <?php if ($page < $totalPages): ?>
-                        <a href="?page=<?php echo $page + 1; ?><?php echo !empty($search) ? '&search=' . urlencode($search) : ''; ?>">Next &rsaquo;</a>
-                        <a href="?page=<?php echo $totalPages; ?><?php echo !empty($search) ? '&search=' . urlencode($search) : ''; ?>">Last &raquo;</a>
+                        <a href="?page=<?php echo $page + 1; ?><?php echo $queryString; ?>">Next &rsaquo;</a>
+                        <a href="?page=<?php echo $totalPages; ?><?php echo $queryString; ?>">Last &raquo;</a>
                     <?php endif; ?>
                 </div>
             <?php endif; ?>

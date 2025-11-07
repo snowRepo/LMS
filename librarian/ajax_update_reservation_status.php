@@ -81,6 +81,37 @@ try {
             throw new Exception('Failed to approve reservation');
         }
         
+        // Log the reservation approval activity
+        try {
+            // Get reservation details for the activity log
+            $db = Database::getInstance()->getConnection();
+            $stmt = $db->prepare("
+                SELECT b.title as book_title, u.first_name, u.last_name
+                FROM reservations r
+                JOIN books b ON r.book_id = b.id
+                JOIN users u ON r.member_id = u.id
+                WHERE r.id = ?
+            ");
+            $stmt->execute([$reservationId]);
+            $reservationDetails = $stmt->fetch();
+            
+            if ($reservationDetails) {
+                $activityStmt = $db->prepare("
+                    INSERT INTO activity_logs 
+                    (user_id, library_id, action, description, created_at)
+                    VALUES (?, ?, 'approve_reservation', ?, NOW())
+                ");
+                $activityStmt->execute([
+                    $_SESSION['user_id'],
+                    $_SESSION['library_id'],
+                    'Approved reservation for book "' . $reservationDetails['book_title'] . '" for member ' . $reservationDetails['first_name'] . ' ' . $reservationDetails['last_name']
+                ]);
+            }
+        } catch (Exception $e) {
+            // Log the error but don't fail the approval process
+            error_log('Failed to log activity: ' . $e->getMessage());
+        }
+        
         $message = 'Reservation approved successfully';
         
     } elseif ($action === 'reject') {
@@ -98,6 +129,37 @@ try {
         
         if (!$success) {
             throw new Exception('Failed to reject reservation');
+        }
+        
+        // Log the reservation rejection activity
+        try {
+            // Get reservation details for the activity log
+            $db = Database::getInstance()->getConnection();
+            $stmt = $db->prepare("
+                SELECT b.title as book_title, u.first_name, u.last_name
+                FROM reservations r
+                JOIN books b ON r.book_id = b.id
+                JOIN users u ON r.member_id = u.id
+                WHERE r.id = ?
+            ");
+            $stmt->execute([$reservationId]);
+            $reservationDetails = $stmt->fetch();
+            
+            if ($reservationDetails) {
+                $activityStmt = $db->prepare("
+                    INSERT INTO activity_logs 
+                    (user_id, library_id, action, description, created_at)
+                    VALUES (?, ?, 'reject_reservation', ?, NOW())
+                ");
+                $activityStmt->execute([
+                    $_SESSION['user_id'],
+                    $_SESSION['library_id'],
+                    'Rejected reservation for book "' . $reservationDetails['book_title'] . '" for member ' . $reservationDetails['first_name'] . ' ' . $reservationDetails['last_name'] . '. Reason: ' . $rejectionReason
+                ]);
+            }
+        } catch (Exception $e) {
+            // Log the error but don't fail the rejection process
+            error_log('Failed to log activity: ' . $e->getMessage());
         }
         
         $message = 'Reservation rejected successfully';

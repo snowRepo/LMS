@@ -80,9 +80,13 @@ try {
         SELECT al.*, u.first_name, u.last_name, 
                CASE 
                    WHEN al.action = 'add_book' THEN 'New Book Added'
+                   WHEN al.action = 'update_book' THEN 'Book Updated'
+                   WHEN al.action = 'delete_book' THEN 'Book Deleted'
                    WHEN al.action = 'add_member' THEN 'New Member Registered'
                    WHEN al.action = 'borrow_book' THEN 'Book Borrowed'
                    WHEN al.action = 'return_book' THEN 'Book Returned'
+                   WHEN al.action = 'approve_reservation' THEN 'Reservation Approved'
+                   WHEN al.action = 'reject_reservation' THEN 'Reservation Rejected'
                    WHEN al.action = 'update_member' THEN 'Member Profile Updated'
                    ELSE al.action
                END as activity_title,
@@ -523,6 +527,12 @@ $pageTitle = 'Librarian Dashboard';
                                     case 'add_book':
                                         echo '<i class="fas fa-book"></i>';
                                         break;
+                                    case 'update_book':
+                                        echo '<i class="fas fa-edit"></i>';
+                                        break;
+                                    case 'delete_book':
+                                        echo '<i class="fas fa-trash"></i>';
+                                        break;
                                     case 'add_member':
                                         echo '<i class="fas fa-user-plus"></i>';
                                         break;
@@ -531,6 +541,12 @@ $pageTitle = 'Librarian Dashboard';
                                         break;
                                     case 'return_book':
                                         echo '<i class="fas fa-book-reader"></i>';
+                                        break;
+                                    case 'approve_reservation':
+                                        echo '<i class="fas fa-check-circle"></i>';
+                                        break;
+                                    case 'reject_reservation':
+                                        echo '<i class="fas fa-times-circle"></i>';
                                         break;
                                     case 'update_member':
                                         echo '<i class="fas fa-user-edit"></i>';

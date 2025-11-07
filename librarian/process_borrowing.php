@@ -367,6 +367,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 
                 $db->commit();
+                
+                // Log the book borrowing activity
+                try {
+                    // Get book title for the activity log
+                    $bookStmt = $db->prepare("SELECT title FROM books WHERE id = ?");
+                    $bookStmt->execute([$bookId]);
+                    $bookInfo = $bookStmt->fetch();
+                    
+                    $activityStmt = $db->prepare("
+                        INSERT INTO activity_logs 
+                        (user_id, library_id, action, description, created_at)
+                        VALUES (?, ?, 'borrow_book', ?, NOW())
+                    ");
+                    $activityStmt->execute([
+                        $_SESSION['user_id'],
+                        $_SESSION['library_id'],
+                        'Borrowed book: ' . ($bookInfo ? $bookInfo['title'] : 'Unknown Book')
+                    ]);
+                } catch (Exception $e) {
+                    // Log the error but don't fail the borrowing process
+                    error_log('Failed to log activity: ' . $e->getMessage());
+                }
+                
                 // Redirect with success message for toast notification
                 header('Location: borrowing.php?success=' . urlencode('Book borrowed successfully'));
                 exit;

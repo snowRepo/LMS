@@ -57,6 +57,8 @@ try {
                 // Convert empty publication year to NULL
                 $publicationYear = ($publicationYear === '') ? null : (int)$publicationYear;
                 $pages = isset($_POST['pages']) ? trim($_POST['pages']) : '';
+                // Convert empty pages to NULL to avoid integer conversion issues
+                $pages = ($pages === '') ? null : (int)$pages;
                 $language = isset($_POST['language']) ? trim($_POST['language']) : '';
                 $description = isset($_POST['description']) ? trim($_POST['description']) : '';
                 $totalCopies = isset($_POST['total_copies']) ? (int)$_POST['total_copies'] : 0;
@@ -167,6 +169,23 @@ try {
                     } catch (Exception $e) {
                         // Log the error but don't fail the book addition
                         error_log('Failed to update current_book_count: ' . $e->getMessage());
+                    }
+                    
+                    // Log the book addition activity
+                    try {
+                        $activityStmt = $db->prepare("
+                            INSERT INTO activity_logs 
+                            (user_id, library_id, action, description, created_at)
+                            VALUES (?, ?, 'add_book', ?, NOW())
+                        ");
+                        $activityStmt->execute([
+                            $userId,
+                            $libraryId,
+                            'Added book: ' . $title
+                        ]);
+                    } catch (Exception $e) {
+                        // Log the error but don't fail the book addition
+                        error_log('Failed to log activity: ' . $e->getMessage());
                     }
                     
                     header('Content-Type: application/json');

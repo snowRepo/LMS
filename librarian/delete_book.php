@@ -80,6 +80,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirm_delete'])) {
                 unlink('../uploads/books/' . $bookData['cover_image']);
             }
             
+            // Log the book deletion activity
+            try {
+                $activityStmt = $db->prepare("
+                    INSERT INTO activity_logs 
+                    (user_id, library_id, action, description, created_at)
+                    VALUES (?, ?, 'delete_book', ?, NOW())
+                ");
+                $activityStmt->execute([
+                    $_SESSION['user_id'],
+                    $libraryId,
+                    'Deleted book: ' . $book['title']
+                ]);
+            } catch (Exception $e) {
+                // Log the error but don't fail the book deletion
+                error_log('Failed to log activity: ' . $e->getMessage());
+            }
+            
             // Update the current_book_count in the libraries table
             try {
                 // Get the current book count for this library
@@ -147,7 +164,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirm_delete'])) {
         }
 
         .page-header h1 {
-            color: #495057;
+            color: #212529;
             font-size: 2rem;
             margin-bottom: 0.5rem;
         }
