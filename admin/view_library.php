@@ -273,6 +273,11 @@ $pageTitle = 'View Library';
             color: white;
         }
         
+        .status-danger {
+            background-color: var(--danger-color);
+            color: white;
+        }
+        
         .action-buttons {
             display: flex;
             gap: 1rem;
@@ -503,7 +508,7 @@ $pageTitle = 'View Library';
                                     
                                     // Check if subscription has expired
                                     if ($endDate < $today) {
-                                        echo 'Expired';
+                                        echo '<span class="status-badge status-danger">Expired</span>';
                                     } else {
                                         echo $remainingDays . ' days';
                                     }

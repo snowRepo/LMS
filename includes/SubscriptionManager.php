@@ -112,28 +112,51 @@ class SubscriptionManager {
         $startDate = date('Y-m-d');
         $expiresDate = date('Y-m-d', strtotime('+' . $months . ' months'));
         
-        // Update existing subscription or create new one
-        $stmt = $this->db->prepare("
-            INSERT INTO subscriptions 
-            (library_id, plan_type, status, start_date, end_date)
-            VALUES (?, ?, 'active', ?, ?)
-            ON DUPLICATE KEY UPDATE
-            plan_type = VALUES(plan_type),
-            status = VALUES(status),
-            start_date = VALUES(start_date),
-            end_date = VALUES(end_date),
-            updated_at = NOW()
-        ");
-        
-        $result = $stmt->execute([$libraryId, $plan, $startDate, $expiresDate]);
-        
-        if ($result) {
-            // Log the payment
-            $this->logSubscriptionActivity($libraryId, 'subscription_updated', 
-                "Subscription updated to $plan plan, expires: $expiresDate");
+        try {
+            // First, check if there's an existing subscription for this library
+            $stmt = $this->db->prepare("
+                SELECT id 
+                FROM subscriptions 
+                WHERE library_id = ? 
+                ORDER BY created_at DESC 
+                LIMIT 1
+            ");
+            $stmt->execute([$libraryId]);
+            $existingSubscription = $stmt->fetch();
+            
+            if ($existingSubscription) {
+                // Update existing subscription
+                $stmt = $this->db->prepare("
+                    UPDATE subscriptions 
+                    SET plan_type = ?, 
+                        status = 'active', 
+                        start_date = ?, 
+                        end_date = ?, 
+                        updated_at = NOW()
+                    WHERE id = ?
+                ");
+                $result = $stmt->execute([$plan, $startDate, $expiresDate, $existingSubscription['id']]);
+            } else {
+                // Create new subscription
+                $stmt = $this->db->prepare("
+                    INSERT INTO subscriptions 
+                    (library_id, plan_type, status, start_date, end_date)
+                    VALUES (?, ?, 'active', ?, ?)
+                ");
+                $result = $stmt->execute([$libraryId, $plan, $startDate, $expiresDate]);
+            }
+            
+            if ($result) {
+                // Log the payment
+                $this->logSubscriptionActivity($libraryId, 'subscription_updated', 
+                    "Subscription updated to $plan plan, expires: $expiresDate");
+            }
+            
+            return $result;
+        } catch (Exception $e) {
+            error_log("Error updating subscription: " . $e->getMessage());
+            return false;
         }
-        
-        return $result;
     }
     
     /**

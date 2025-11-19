@@ -167,6 +167,7 @@ try {
         .page-header {
             margin-bottom: 30px;
             text-align: center;
+            margin-top: 20px; /* Push the header down slightly */
         }
 
         .page-header h1 {

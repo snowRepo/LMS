@@ -97,10 +97,10 @@ try {
                         start_date = ?, 
                         end_date = DATE_ADD(?, INTERVAL 1 YEAR),
                         updated_at = NOW()
-                    WHERE library_id = ?
+                    WHERE id = ?
                 ");
                 $startDate = date('Y-m-d');
-                $result = $stmt->execute([$selectedPlan, $startDate, $startDate, $libraryId]);
+                $result = $stmt->execute([$selectedPlan, $startDate, $startDate, $existingSubscription['id']]);
             } else {
                 // Create new subscription
                 $stmt = $db->prepare("
@@ -621,11 +621,13 @@ $pageTitle = 'Activate Subscription';
                                     $statusClass = 'status-' . $existingSubscription['status'];
                                     if ($existingSubscription['status'] === 'trial' && !empty($existingSubscription['end_date']) && strtotime($existingSubscription['end_date']) < time()) {
                                         $statusClass = 'status-expired';
+                                    } elseif ($existingSubscription['status'] === 'active' && !empty($existingSubscription['end_date']) && strtotime($existingSubscription['end_date']) < time()) {
+                                        $statusClass = 'status-expired';
                                     }
                                     ?>
                                     <span class="status-badge <?php echo $statusClass; ?>">
                                         <?php 
-                                        if ($existingSubscription['status'] === 'trial' && !empty($existingSubscription['end_date']) && strtotime($existingSubscription['end_date']) < time()) {
+                                        if (($existingSubscription['status'] === 'trial' || $existingSubscription['status'] === 'active') && !empty($existingSubscription['end_date']) && strtotime($existingSubscription['end_date']) < time()) {
                                             echo 'Expired';
                                         } else {
                                             echo ucfirst($existingSubscription['status']);
@@ -665,19 +667,52 @@ $pageTitle = 'Activate Subscription';
                             <?php endif; ?>
                         </div>
                         
-                        <?php if ($existingSubscription['status'] === 'trial'): ?>
-                            <div class="info-group">
-                                <div class="alert alert-info">
-                                    <i class="fas fa-info-circle"></i> This library is currently in trial mode. You can activate a full subscription below.
-                                </div>
+                        <?php 
+                        // Determine the appropriate alert message and class based on subscription status
+                        $alertClass = 'alert-info';
+                        $alertIcon = 'fa-info-circle';
+                        $alertMessage = '';
+                        
+                        // Check if subscription is expired
+                        $isExpired = false;
+                        if (!empty($existingSubscription['end_date']) && strtotime($existingSubscription['end_date']) < time()) {
+                            $isExpired = true;
+                        }
+                        
+                        if ($isExpired) {
+                            if ($existingSubscription['status'] === 'trial') {
+                                $alertClass = 'alert-error';
+                                $alertIcon = 'fa-exclamation-circle';
+                                $alertMessage = 'This library\'s trial period has expired. Please activate a full subscription to continue using the service.';
+                            } else {
+                                $alertClass = 'alert-error';
+                                $alertIcon = 'fa-exclamation-circle';
+                                $alertMessage = 'This library\'s subscription has expired. Please renew the subscription to continue using the service.';
+                            }
+                        } else {
+                            if ($existingSubscription['status'] === 'trial') {
+                                $alertClass = 'alert-info';
+                                $alertIcon = 'fa-info-circle';
+                                $alertMessage = 'This library is currently in trial mode. You can activate a full subscription below.';
+                            } elseif ($existingSubscription['status'] === 'active') {
+                                $alertClass = 'alert-success';
+                                $alertIcon = 'fa-check-circle';
+                                $alertMessage = 'This library already has an active subscription. You can change the plan below.';
+                            }
+                        }
+                        ?>
+                        
+                        <div class="info-group">
+                            <div class="alert <?php echo $alertClass; ?>">
+                                <i class="fas <?php echo $alertIcon; ?>"></i> <?php echo $alertMessage; ?>
                             </div>
-                        <?php elseif ($existingSubscription['status'] === 'active'): ?>
-                            <div class="info-group">
-                                <div class="alert alert-success">
-                                    <i class="fas fa-check-circle"></i> This library already has an active subscription. You can change the plan below.
-                                </div>
+                        </div>
+                    <?php else: ?>
+                        <div class="info-group">
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle"></i> This library does not have an active subscription. Please select a plan below to activate a subscription.
                             </div>
-                        <?php endif; ?>
+                        </div>
                     <?php endif; ?>
                     
                     <form method="POST">
@@ -732,7 +767,7 @@ $pageTitle = 'Activate Subscription';
                         
                         <div class="form-group">
                             <button type="submit" name="activate_subscription" class="btn btn-success" id="activateBtn">
-                                <i class="fas fa-toggle-on"></i> <?php echo $existingSubscription ? 'Change Plan' : 'Activate Subscription'; ?>
+                                <i class="fas fa-toggle-on"></i> <?php echo $existingSubscription ? 'Activate Plan' : 'Activate Subscription'; ?>
                             </button>
                         </div>
                     </form>
