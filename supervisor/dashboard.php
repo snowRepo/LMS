@@ -642,13 +642,19 @@ $pageTitle = 'Supervisor Dashboard';
             <p>Welcome back! Here's what's happening with your library today.</p>
         </div>
         
-        <?php if ($subscriptionDetails && $subscriptionDetails['is_trial'] && $subscriptionDetails['days_remaining'] <= 7): ?>
+        <?php if ($subscriptionDetails && $subscriptionDetails['days_remaining'] <= 7 && !$subscriptionDetails['is_expired']): ?>
         <div class="trial-alert">
             <i class="fas fa-exclamation-triangle"></i>
             <div class="trial-content">
-                <h3>Trial Period Ending Soon!</h3>
-                <p>Your trial period expires in <?php echo $subscriptionDetails['days_remaining']; ?> day(s). 
-                Subscribe now to continue accessing all features.</p>
+                <?php if ($subscriptionDetails['is_trial']): ?>
+                    <h3>Trial Period Ending Soon!</h3>
+                    <p>Your trial period expires in <?php echo $subscriptionDetails['days_remaining']; ?> day(s). 
+                    Subscribe now to continue accessing all features.</p>
+                <?php else: ?>
+                    <h3>Subscription Ending Soon!</h3>
+                    <p>Your <?php echo ucfirst($subscriptionDetails['plan']); ?> subscription expires in <?php echo $subscriptionDetails['days_remaining']; ?> day(s). 
+                    Renew now to continue accessing all features.</p>
+                <?php endif; ?>
             </div>
             <a href="subscription.php" class="btn btn-primary">
                 <i class="fas fa-crown"></i>

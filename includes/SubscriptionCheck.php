@@ -23,7 +23,7 @@ function requireActiveSubscription() {
     
     // Check if user is logged in
     if (!isset($_SESSION['user_id']) || !isset($_SESSION['user_role']) || !isset($_SESSION['library_id'])) {
-        header('Location: login.php');
+        header('Location: ../login.php');
         exit;
     }
     
@@ -35,19 +35,19 @@ function requireActiveSubscription() {
     // Check subscription status for all roles including supervisors
     $subscriptionManager = new SubscriptionManager();
     if (!$subscriptionManager->hasActiveSubscription($_SESSION['library_id'])) {
-        // Redirect to appropriate expired page
+        // Redirect to appropriate expired page using correct relative paths
         switch ($_SESSION['user_role']) {
             case 'member':
-                header('Location: expired_member.php');
+                header('Location: ../expired_member.php');
                 break;
             case 'librarian':
-                header('Location: expired_librarian.php');
+                header('Location: ../expired_librarian.php');
                 break;
             case 'supervisor':
-                header('Location: expired_supervisor.php');
+                header('Location: ../expired_supervisor.php');
                 break;
             default:
-                header('Location: login.php');
+                header('Location: ../login.php');
         }
         exit;
     }

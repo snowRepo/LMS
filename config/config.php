@@ -47,9 +47,9 @@ define('PAYSTACK_WEBHOOK_SECRET', env('PAYSTACK_WEBHOOK_SECRET', ''));
 
 // Subscription Configuration
 define('TRIAL_PERIOD_DAYS', env('TRIAL_PERIOD_DAYS', 14));
-define('BASIC_PLAN_PRICE', env('BASIC_PLAN_PRICE', 120000)); // in pesewas (GHS 1200)
-define('STANDARD_PLAN_PRICE', env('STANDARD_PLAN_PRICE', 180000)); // in pesewas (GHS 1800)
-define('PREMIUM_PLAN_PRICE', env('PREMIUM_PLAN_PRICE', 240000)); // in pesewas (GHS 2400)
+define('BASIC_PLAN_PRICE', env('BASIC_PLAN_PRICE', 49900)); // in pesewas (GHS 499)
+define('STANDARD_PLAN_PRICE', env('STANDARD_PLAN_PRICE', 69900)); // in pesewas (GHS 699)
+define('PREMIUM_PLAN_PRICE', env('PREMIUM_PLAN_PRICE', 89900)); // in pesewas (GHS 899)
 
 // File Upload Configuration
 define('MAX_FILE_SIZE', env('MAX_FILE_SIZE', 5 * 1024 * 1024)); // 5MB

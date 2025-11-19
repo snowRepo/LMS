@@ -51,12 +51,12 @@ $pageTitle = 'Subscription Expired';
             overflow: hidden; /* Prevent vertical scrolling */
         }
 
-        /* Custom Navbar - Minimal version without nav links */
+        /* Custom Navbar - Match supervisor navbar styling */
         .expired-navbar {
-            background: #e8f4f8; /* Light blue background */
-            color: #333;
-            padding: 0.4rem 1rem;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            background: linear-gradient(135deg, #3498DB 0%, #2980B9 100%);
+            color: #f8f9fa;
+            padding: 0.5rem 1rem; /* Match supervisor navbar padding */
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1); /* Match supervisor navbar shadow */
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -65,64 +65,63 @@ $pageTitle = 'Subscription Expired';
             left: 0;
             width: 100%;
             z-index: 1000;
-            border-bottom: 1px solid #bdd9e6;
             margin: 0;
-            font-size: 0.9rem;
             box-sizing: border-box; /* Include padding in width calculation */
         }
         
         .navbar-brand {
             display: flex;
             align-items: center;
-            gap: 6px;
+            gap: 8px; /* Match supervisor navbar gap */
         }
         
         .navbar-brand span {
             display: flex;
             align-items: center;
-            gap: 5px;
-            font-size: 1.2rem;
-            font-weight: 700;
-            color: #2980b9;
+            gap: 8px; /* Match supervisor navbar gap */
+            font-size: 1.5rem; /* Match supervisor navbar font size */
+            font-weight: bold; /* Match supervisor navbar font weight */
+            color: #f8f9fa;
             text-decoration: none;
         }
         
         .navbar-brand i {
-            color: #2980b9;
-            font-size: 1.3rem;
+            color: #ecf0f1; /* Match supervisor navbar icon color */
+            font-size: 1.8rem; /* Match supervisor navbar icon size */
         }
         
         .navbar-user {
             position: relative;
             display: flex;
             align-items: center;
-            min-width: 150px; /* Ensure enough space for user info */
-            justify-content: flex-end; /* Align to the right */
         }
         
         .user-info {
             display: flex;
             align-items: center;
-            gap: 8px;
-            padding: 0.3rem 0.8rem;
-            border-radius: 20px;
-            white-space: nowrap; /* Prevent text wrapping */
+            gap: 8px; /* Match supervisor navbar gap */
+            cursor: pointer;
+            padding: 0.4rem; /* Match supervisor navbar padding */
+            border-radius: 6px; /* Match supervisor navbar border radius */
+            transition: background-color 0.3s ease;
+        }
+        
+        .user-info:hover {
+            background-color: rgba(248, 249, 250, 0.1); /* Match supervisor navbar hover */
         }
         
         .user-avatar {
-            width: 32px;
-            height: 32px;
+            width: 35px; /* Match supervisor navbar avatar size */
+            height: 35px; /* Match supervisor navbar avatar size */
             border-radius: 50%;
             overflow: hidden;
             display: flex;
             align-items: center;
             justify-content: center;
-            background: #2980b9;
-            color: white;
+            background-color: #ffffff; /* Match supervisor navbar avatar background */
+            color: #3498DB; /* Match supervisor navbar avatar color */
             font-weight: bold;
-            font-size: 0.9rem;
-            border: 2px solid #2980b9;
-            box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+            font-size: 0.9rem; /* Match supervisor navbar avatar font size */
         }
         
         .avatar-placeholder {
@@ -131,6 +130,16 @@ $pageTitle = 'Subscription Expired';
             justify-content: center;
             width: 100%;
             height: 100%;
+            background-color: #ffffff; /* Match supervisor navbar placeholder background */
+            color: #3498DB; /* Match supervisor navbar placeholder color */
+            font-weight: bold;
+            font-size: 0.9rem; /* Match supervisor navbar placeholder font size */
+        }
+        
+        .user-avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
         }
         
         .user-details {
@@ -140,15 +149,15 @@ $pageTitle = 'Subscription Expired';
         }
         
         .user-name {
-            font-weight: 600;
-            font-size: 0.8rem;
-            color: #333;
+            font-weight: 500; /* Match supervisor navbar user name weight */
+            font-size: 0.85rem; /* Match supervisor navbar user name size */
+            color: #f8f9fa;
         }
         
         .user-role {
-            font-size: 0.65rem;
-            opacity: 0.7;
-            color: #666;
+            font-size: 0.7rem; /* Match supervisor navbar user role size */
+            opacity: 0.8;
+            color: #f8f9fa;
         }
         
         /* Main Content */
@@ -253,7 +262,15 @@ $pageTitle = 'Subscription Expired';
         <div class="navbar-user">
             <div class="user-info">
                 <div class="user-avatar">
-                    <div class="avatar-placeholder"><?php echo $initials; ?></div>
+                    <?php if (isset($_SESSION['profile_image']) && !empty($_SESSION['profile_image'])): ?>
+                        <?php if (file_exists($_SESSION['profile_image'])): ?>
+                            <img src="<?php echo htmlspecialchars($_SESSION['profile_image']); ?>" alt="Profile">
+                        <?php else: ?>
+                            <div class="avatar-placeholder"><?php echo $initials; ?></div>
+                        <?php endif; ?>
+                    <?php else: ?>
+                        <div class="avatar-placeholder"><?php echo $initials; ?></div>
+                    <?php endif; ?>
                 </div>
                 <div class="user-details">
                     <span class="user-name"><?php echo htmlspecialchars($userName); ?></span>

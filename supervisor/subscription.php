@@ -445,7 +445,7 @@ $pageTitle = 'Subscription Management';
             <?php endif; ?>
 
             <!-- Warnings -->
-            <?php if ($subscriptionDetails['is_trial'] && $subscriptionDetails['days_remaining'] <= 3): ?>
+            <?php if ($subscriptionDetails['is_trial'] && $subscriptionDetails['days_remaining'] <= 3 && !$subscriptionDetails['is_expired']): ?>
                 <div class="alert alert-warning" style="margin-top: 1rem;">
                     <i class="fas fa-exclamation-triangle"></i>
                     <strong>Trial Ending Soon!</strong> Your trial expires in <?php echo $subscriptionDetails['days_remaining']; ?> day(s). 
@@ -456,8 +456,13 @@ $pageTitle = 'Subscription Management';
             <?php if ($subscriptionDetails['is_expired']): ?>
                 <div class="alert alert-danger" style="margin-top: 1rem;">
                     <i class="fas fa-exclamation-circle"></i>
-                    <strong>Subscription Expired!</strong> Your subscription expired on <?php echo date('M d, Y', strtotime($subscriptionDetails['expires'])); ?>. 
-                    Please renew to continue accessing your library.
+                    <?php if ($subscriptionDetails['is_trial']): ?>
+                        <strong>Trial Period Expired!</strong> Your trial period expired on <?php echo date('M d, Y', strtotime($subscriptionDetails['expires'])); ?>. 
+                        Please subscribe to continue accessing your library.
+                    <?php else: ?>
+                        <strong>Subscription Expired!</strong> Your subscription expired on <?php echo date('M d, Y', strtotime($subscriptionDetails['expires'])); ?>. 
+                        Please renew to continue accessing your library.
+                    <?php endif; ?>
                 </div>
             <?php endif; ?>
         </div>

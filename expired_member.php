@@ -133,6 +133,12 @@ $pageTitle = 'Subscription Expired';
             height: 100%;
         }
         
+        .user-avatar img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
         .user-details {
             display: flex;
             flex-direction: column;
@@ -244,7 +250,15 @@ $pageTitle = 'Subscription Expired';
         <div class="navbar-user">
             <div class="user-info">
                 <div class="user-avatar">
-                    <div class="avatar-placeholder"><?php echo $initials; ?></div>
+                    <?php if (isset($_SESSION['profile_image']) && !empty($_SESSION['profile_image'])): ?>
+                        <?php if (file_exists($_SESSION['profile_image'])): ?>
+                            <img src="<?php echo htmlspecialchars($_SESSION['profile_image']); ?>" alt="Profile">
+                        <?php else: ?>
+                            <div class="avatar-placeholder"><?php echo $initials; ?></div>
+                        <?php endif; ?>
+                    <?php else: ?>
+                        <div class="avatar-placeholder"><?php echo $initials; ?></div>
+                    <?php endif; ?>
                 </div>
                 <div class="user-details">
                     <span class="user-name"><?php echo htmlspecialchars($userName); ?></span>
@@ -264,12 +278,12 @@ $pageTitle = 'Subscription Expired';
         
         <div class="message">
             <p>Your library subscription has expired. Access to library features is currently restricted.</p>
-            <p>Please contact your library administrator or renew your subscription to continue using the system.</p>
+            <p>Access will be restored when your library renews their subscription.</p>
         </div>
         
         <div class="warning-box">
             <h3><i class="fas fa-info-circle"></i> What happens next?</h3>
-            <p>You will not be able to access library resources, borrow books, or use messaging features until your subscription is renewed.</p>
+            <p>You will not be able to access library resources, borrow books, or use messaging features until your library subscription is renewed.</p>
         </div>
         
         <a href="logout.php" class="btn">

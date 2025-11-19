@@ -204,10 +204,10 @@ $currentPage = 'pricing.php';
         <div class="plans">
             <div class="plan">
                 <h3>Basic</h3>
-                <div class="plan-price">GHS 1,200</div>
+                <div class="plan-price"><?php echo 'GHS ' . number_format(BASIC_PLAN_PRICE/100); ?></div>
                 <div class="plan-period">per year</div>
                 <ul class="plan-features">
-                    <li><i class="fas fa-check"></i> Up to 500 books</li>
+                    <li><i class="fas fa-check"></i> Up to <?php echo number_format(BASIC_PLAN_BOOK_LIMIT); ?> books</li>
                     <li><i class="fas fa-check"></i> Up to 100 members</li>
                     <li><i class="fas fa-check"></i> Basic reporting</li>
                     <li><i class="fas fa-check"></i> Email support</li>
@@ -218,10 +218,10 @@ $currentPage = 'pricing.php';
 
             <div class="plan featured">
                 <h3>Standard</h3>
-                <div class="plan-price">GHS 1,800</div>
+                <div class="plan-price"><?php echo 'GHS ' . number_format(STANDARD_PLAN_PRICE/100); ?></div>
                 <div class="plan-period">per year</div>
                 <ul class="plan-features">
-                    <li><i class="fas fa-check"></i> Up to 2,000 books</li>
+                    <li><i class="fas fa-check"></i> Up to <?php echo number_format(STANDARD_PLAN_BOOK_LIMIT); ?> books</li>
                     <li><i class="fas fa-check"></i> Up to 500 members</li>
                     <li><i class="fas fa-check"></i> Advanced reporting</li>
                     <li><i class="fas fa-check"></i> Priority support</li>
@@ -233,10 +233,10 @@ $currentPage = 'pricing.php';
 
             <div class="plan">
                 <h3>Premium</h3>
-                <div class="plan-price">GHS 2,400</div>
+                <div class="plan-price"><?php echo 'GHS ' . number_format(PREMIUM_PLAN_PRICE/100); ?></div>
                 <div class="plan-period">per year</div>
                 <ul class="plan-features">
-                    <li><i class="fas fa-check"></i> Unlimited books</li>
+                    <li><i class="fas fa-check"></i> <?php echo (PREMIUM_PLAN_BOOK_LIMIT == -1) ? 'Unlimited' : 'Up to ' . number_format(PREMIUM_PLAN_BOOK_LIMIT); ?> books</li>
                     <li><i class="fas fa-check"></i> Unlimited members</li>
                     <li><i class="fas fa-check"></i> Full analytics suite</li>
                     <li><i class="fas fa-check"></i> 24/7 phone support</li>
