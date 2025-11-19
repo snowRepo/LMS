@@ -136,7 +136,7 @@ try {
             
             // Prepare notification message
             $title = 'Book Returned';
-            $message = "You have successfully returned '{$memberInfo['book_title']}'. Thank you for returning the book on time.";
+            $message = "You have successfully returned '{$memberInfo['book_title']}'. Thank you for returning the book.";
             $actionUrl = "../member/borrowing.php";
             
             // Create notification for member

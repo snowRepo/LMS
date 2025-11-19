@@ -38,7 +38,7 @@ try {
         
         // Send notification to each member with due books
         foreach ($dueBooks as $book) {
-            $message = "Reminder: The book '{$book['book_title']}' is due tomorrow ({$book['due_date']}). Please return it on time to avoid late fees.";
+            $message = "Reminder: The book '{$book['book_title']}' is due tomorrow ({$book['due_date']}). Please return it to avoid late fees.";
             $notificationService->createNotification(
                 $book['member_user_id'],
                 'Book Due Reminder',
